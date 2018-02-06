@@ -1,0 +1,45 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "summary": "AfterShip Shipment Tracking Skill",
+          "examplePhrases": [
+            "Alexa, ask aftership where's my stuff?",
+            "Alexa, ask aftership to track my shipments from Amazon",
+            "Alexa, ask aftership do I have any packages out for delivery?"
+          ],
+          "name": "AfterShip Shipment Tracking",
+          "description": "Unofficial AfterShip Shipment Tracking Skill.",
+          "smallIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/icons/aftership-108.png",
+          "largeIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/icons/aftership-512.png"
+        }
+      },
+      "isAvailableWorldwide": true,
+      "testingInstructions": "Ask to track shipments",
+      "category": "ORGANIZERS_AND_ASSISTANTS",
+      "distributionMode": "PRIVATE",
+      "distributionCountries": []
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "sourceDir": "lambda/custom"
+        }
+      }
+    },
+    "manifestVersion": "1.0",
+    "permissions": [
+      {
+        "name": "alexa:devices:all:address:country_and_postal_code:read"
+      }
+    ],
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "isChildDirected": false,
+      "usesPersonalInfo": false
+    }
+  }
+}

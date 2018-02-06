@@ -1,0 +1,62 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "after ship",
+      "types": [],
+      "intents": [
+        {
+          "name": "TrackingSearchIntent",
+          "samples": [
+            "where's my stuff",
+            "track my packages {keyword}",
+            "do i have any packages {keyword}",
+            "if i have any packages {keyword}",
+            "track my shipments {keyword}",
+            "do i have any shipments {keyword}",
+            "if i have any shipments {keyword}"
+          ],
+          "slots": [
+            {
+              "name": "keyword",
+              "type": "keywordType"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent"
+        },
+        {
+          "name": "AMAZON.StopIntent"
+        },
+        {
+          "name": "AMAZON.CancelIntent"
+        }
+      ],
+      "types": [
+        {
+          "name": "keywordType",
+          "values": [
+            {
+              "name": {
+                "value": "keyword1",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "keyword2",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "keyword3",
+                "synonyms": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
