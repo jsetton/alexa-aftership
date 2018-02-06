@@ -1,0 +1,21 @@
+{
+  "name": "alexa-aftership",
+  "version": "1.0.0",
+  "description": "AfterShip Shipment Tracking for Alexa",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsetton/alexa-aftership.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jeremy Setton",
+  "license": "MIT",
+  "dependencies": {
+    "aftership": "^5.3.4",
+    "alexa-sdk": "^1.0.0",
+    "moment-timezone": "^0.5.14",
+    "request": "^2.83.0"
+  }
+}
