@@ -1,7 +1,9 @@
 'use strict';
 
-// Ask helpers functions
-
+/**
+ * List of supported say as interpret names
+ * @type {Array}
+ */
 const supportedSayAs = [
   'characters', 'spell-out',
   'cardinal', 'number',
@@ -12,6 +14,11 @@ const supportedSayAs = [
   'interjection', 'expletive'
 ];
 
+/**
+ * Returns decoded speech markup
+ * @param  {String} text
+ * @return {String}
+ */
 function decodeSpeechMarkup(text) {
   return text
     .replace(/&amp;/g, '&')
@@ -21,6 +28,11 @@ function decodeSpeechMarkup(text) {
     .replace(/&apos;/g, "'");
 };
 
+/**
+ * Returns encoded speech markup
+ * @param  {String} text
+ * @return {String}
+ */
 function encodeSpeechMarkup(text) {
   return text
     .replace(/&/g, '&amp;')
@@ -30,6 +42,11 @@ function encodeSpeechMarkup(text) {
     .replace(/'/g, '&apos;');
 };
 
+/**
+ * Returns formatted speech markup
+ * @param  {String} text
+ * @return {String}
+ */
 function formatSpeechMarkup(text) {
   return encodeSpeechMarkup(text)
     .replace(
@@ -44,18 +61,27 @@ function formatSpeechMarkup(text) {
     );
 };
 
+/**
+ * Returns say as interpret speech markup tagging
+ * @param  {String} text
+ * @param  {String} interpretAs
+ * @return {String}
+ */
 function sayAsSpeechMarkup(text, interpretAs) {
   return supportedSayAs.indexOf(interpretAs) > -1 ? `<say-as interpret-as="${interpretAs}">${text}</say-as>` : text;
 };
 
+/**
+ * Return stripped speech markup
+ * @param  {String} text
+ * @return {String}
+ */
 function stripSpeechMarkup(text) {
   return decodeSpeechMarkup(text.replace(/<[^>]+>/g, ''));
 };
 
 module.exports = {
-    ask: {
-      formatSpeechMarkup: formatSpeechMarkup,
-      sayAsSpeechMarkup: sayAsSpeechMarkup,
-      stripSpeechMarkup: stripSpeechMarkup
-    }
+  formatSpeechMarkup: formatSpeechMarkup,
+  sayAsSpeechMarkup: sayAsSpeechMarkup,
+  stripSpeechMarkup: stripSpeechMarkup
 };

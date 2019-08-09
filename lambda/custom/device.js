@@ -4,6 +4,9 @@ const config = require('./config');
 const location = require('./location');
 const moment = require('./moment');
 
+/**
+ * Defines device location client class
+ */
 class DeviceLocationClient {
   constructor() {
     this.location = {};
@@ -19,19 +22,15 @@ class DeviceLocationClient {
     this.today = moment().tz(value).startOf('day');
   }
 
-  getLocationInformation(deviceId, apiEndpoint, apiAccessToken) {
-    // Get device address country and postal code
-    return location.getDeviceCountryAndPostalCode(deviceId, apiEndpoint, apiAccessToken)
-    // Get device location geolocation data
-    .then((device) => location.getGeoLocation(`${device.countryCode},${device.postalCode}`))
-    // Store device geolocation data in aftership object
-    .then((geodata) => { this.location = geodata; return `${geodata.lat},${geodata.lng}`; })
-    // Get timezone information
-    .then((address) => location.getTimezoneId(address))
-    // Store device timezone in aftership object
-    .then((timezone) => { this.timezone = timezone; })
-    // Catch all errors
-    .catch((error) => { throw error; });
+  async setLocationInformation(address) {
+    try {
+      // Set device location geolocation data
+      this.location = await location.getGeoLocation(`${address.countryCode},${address.postalCode}`);
+      // Set device timezone id
+      this.timezone = await location.getTimezoneId(`${this.location.lat},${this.location.lng}`);
+    } catch (error) {
+      throw error;
+    }
   }
 };
 
