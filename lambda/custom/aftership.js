@@ -2,13 +2,16 @@
 
 const config = require('./config');
 const aftership = require('aftership')(config.AFTERSHIP_API_KEY);
-const ask = require('./helpers').ask;
 const device = require('./device');
 const location = require('./location');
 const moment = require('./moment');
+const { formatSpeechMarkup, sayAsSpeechMarkup } = require('./utils');
 
-// AfterShip tracking status
-// https://docs.aftership.com/api/4/delivery-status
+/**
+ * AfterShip tracking status
+ *    https://docs.aftership.com/api/4/delivery-status
+ * @type {Object}
+ */
 const trackingStatus = {
   InfoReceived: 'waiting to be received by the carrier',
   InTransit: 'in transit',
@@ -23,50 +26,59 @@ const trackingStatus = {
   ExpectedPast: 'should have arrived'
 };
 
-// Format trackings address
-function formatTrackingsAddress(trackings) {
-  return Promise.all(
-    trackings.reduce((acc, cur) => {
-      acc.push(cur.location ? location.getGeoLocation(cur.location, true) : null);
-      return acc;
-    }, [])
-  ).then((geodata) => {
-    geodata.forEach((address, index) => {
-      if (address) {
-        // Determine if address & device location are the same
-        if (Object.keys(address).every((key) => {
-          return ['lat', 'lng'].indexOf(key) == -1 ? address[key] == device.location[key] : true;
-        })) {
-          trackings[index].address = 'here';
-        } else if (!address.country || address.country == config.DEFAULT_COUNTRY) {
-          trackings[index].address = address.city ? address.state ?
-            `${address.city}, ${address.state}` : address.city : '';
-        } else {
-          trackings[index].address = address.city ? `${address.city}, ${address.country}` : address.country;
-        }
-      }
-    })
+/**
+ * Returns formatted trackings address
+ * @param  {Object} trackings
+ * @return {Object}
+ */
+async function formatTrackingsAddress(trackings) {
+  const geodata = await Promise.all(
+    trackings.reduce((promises, tracking) =>
+      promises.concat(tracking.location ? location.getGeoLocation(tracking.location, true) : undefined), [])
+  );
 
-    return trackings;
+  geodata.forEach((address, index) => {
+    if (address) {
+      // Determine if address & device location are the same
+      if (Object.keys(address).every((key) => {
+        return ['lat', 'lng'].indexOf(key) == -1 ? address[key] == device.location[key] : true;
+      })) {
+        trackings[index].address = 'here';
+      } else if (!address.country || address.country == config.DEFAULT_COUNTRY) {
+        trackings[index].address = address.city ? address.state ?
+          `${address.city}, ${address.state}` : address.city : '';
+      } else {
+        trackings[index].address = address.city ? `${address.city}, ${address.country}` : address.country;
+      }
+    }
   });
+
+  return trackings;
 };
 
-// Format trackings list
+/**
+ * Returns speech output formatted trackings list
+ * @param  {Object} trackings
+ * @param  {Object} couriers
+ * @param  {Object} query
+ * @param  {Array}  footnotes
+ * @return {String}
+ */
 function formatTrackingsList(trackings, couriers, query, footnotes) {
-  let summary = {};
+  const summary = {};
 
   trackings.forEach((pkg) => {
     // Populate summary table
-    let tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery']
+    const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery']
       .indexOf(pkg.tag) > -1 ? pkg.tag : 'ExpectedDelivery';
     summary[tag] = (summary[tag] || 0) + pkg.count;
 
     // Set response message
-    let message = [
-      pkg.count == 1 ? 'A' : ask.sayAsSpeechMarkup(pkg.count, 'cardinal'),
+    const message = [
+      pkg.count == 1 ? 'A' : sayAsSpeechMarkup(pkg.count, 'cardinal'),
       couriers[pkg.slug] || pkg.slug,
       pkg.count == 1 ? 'package' : 'packages', 'from',
-      ask.formatSpeechMarkup(pkg.title)
+      formatSpeechMarkup(pkg.title)
     ];
     switch (pkg.tag) {
       case 'AttemptFail':
@@ -85,7 +97,7 @@ function formatTrackingsList(trackings, couriers, query, footnotes) {
         message.push(
           pkg.count == 1 ? 'was' : 'were',
           pkg.last_updated && !pkg.date ? 'marked as' : '', trackingStatus['Delivered'],
-          pkg.address ? pkg.address != 'here' ? 'in ' + ask.sayAsSpeechMarkup(pkg.address, 'address') : 'here' : '',
+          pkg.address ? pkg.address != 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'here' : '',
           pkg.date ? pkg.date.calendar() : pkg.last_updated ? pkg.last_updated.calendar() : '',
           pkg.time ? `at ${pkg.time}` : ''
         );
@@ -93,7 +105,7 @@ function formatTrackingsList(trackings, couriers, query, footnotes) {
       case 'OutForDelivery':
         message.push(
           pkg.count == 1 ? 'is' : 'are', trackingStatus['OutForDelivery'],
-          pkg.address ? pkg.address != 'here' ? 'in ' + ask.sayAsSpeechMarkup(pkg.address, 'address') : 'towards here' : '',
+          pkg.address ? pkg.address != 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'towards here' : '',
           pkg.time ? `since ${pkg.time}` : ''
         );
         break;
@@ -108,21 +120,16 @@ function formatTrackingsList(trackings, couriers, query, footnotes) {
     pkg.message = message.filter(word => word !== '');
   });
 
-  let response = {
+  const response = {
     summary: 'Currently, you have '.concat(
-      Object.keys(summary).reduce((acc, cur, idx, obj) => {
-        return acc.concat(
-          idx > 0 ? idx != obj.length - 1 ? ', ' : ', and ' : '',
-          summary[cur], summary[cur] > 1 ? ' packages ' : ' package ', trackingStatus[cur]
-        );
-      }, '') || (query.options.tag ? `no package ${trackingStatus[query.options.tag]}` : 'no package'),
+      Object.keys(summary).reduce((result, status, idx, obj) => result.concat(
+        idx > 0 ? idx != obj.length - 1 ? ', ' : ', and ' : '',
+        summary[status], summary[status] > 1 ? ' packages ' : ' package ', trackingStatus[status]
+      ), '') || (query.options.tag ? `no package ${trackingStatus[query.options.tag]}` : 'no package'),
       query.options.keyword || query.options.slug ? ` from ${query.string}` : '',
       Object.keys(summary).length > 0 ? ':' : '.'
     ),
-    details: trackings.reduce((acc, cur) => {
-      acc.push(cur.message.join(' ') + '.');
-      return acc;
-    }, [])
+    details: trackings.map(pkg => `${pkg.message.join(' ')}.`)
   };
 
   return '<p>' + (
@@ -134,27 +141,28 @@ function formatTrackingsList(trackings, couriers, query, footnotes) {
   );
 };
 
-// Format trackings query
+/**
+ * Returns formated trackings query
+ * @param  {String} keyword
+ * @param  {Object} couriers
+ * @return {Object}
+ */
 function formatTrackingsQuery(keyword, couriers) {
   // Delete keyword prepositions if string type
-  keyword = keyword ? keyword.replace(/^(?:from|for)\s+/i, '') : null;
+  keyword = typeof keyword === 'string' ? keyword.replace(/^(?:from|for)\s+/i, '') : null;
 
   // Extract courier slugs from keyword
-  let slug = keyword ? Object.keys(couriers).reduce((acc, cur) => {
-    if (couriers[cur].toLowerCase() == keyword.toLowerCase()) {
-      acc.push(cur);
-    }
-    return acc;
-  }, []) : [];
+  const slug = !keyword ? [] : Object.keys(couriers).reduce((slug, courier) =>
+    slug.concat(couriers[courier].toLowerCase() === keyword.toLowerCase() ? courier : []), []);
 
   // Convert keyword to CamelCase to determine if a tag tracking status
-  let tag = keyword ? keyword.toLowerCase()
+  const tag = keyword ? keyword.toLowerCase()
     .replace(/\s(.)/g, function($1) { return $1.toUpperCase(); })
     .replace(/\s/g, '')
     .replace(/^(.)/, function($1) { return $1.toUpperCase(); }) : '';
 
   // Set query object
-  let query = {
+  const query = {
     string: keyword,
     options: Object.assign({
       created_at_min: moment().subtract(config.AFTERSHIP_DAYS_SEARCH, 'days').format(),
@@ -166,141 +174,146 @@ function formatTrackingsQuery(keyword, couriers) {
   };
 
   if (config.DEBUG_MODE)
-    console.log('Aftership trackings query:', JSON.stringify(query.options, null, 2));
+    console.log('Aftership trackings query:', JSON.stringify(query.options));
 
   return query;
 };
 
-// Get courier name list
-function getCourierNameList() {
-  return aftership.call('GET', '/couriers/all').then(
-    (result) => {
-      return result.data.couriers.reduce((acc, cur) => {
-        acc[cur.slug] = cur.name;
-        return acc;
-      }, {});
-    },
-    (error) => {
-      console.error('Failed to get couriers data:', JSON.stringify(error, null, 2));
-      throw error;
-    }
-  );
+/**
+ * Returns courier name list
+ * @return {Object}
+ */
+async function getCourierNameList() {
+  try {
+    const {data} = await aftership.call('GET', '/couriers/all');
+    return data.couriers.reduce(
+      (list, courier) => Object.assign(list, {[courier.slug]: courier.name}), {});
+  } catch (error) {
+    console.error('Failed to get couriers data:', JSON.stringify(error));
+    throw error;
+  };
 };
 
-// Get trackings information
-function getTrackingsInformation(query) {
-  return aftership.call('GET', '/trackings', {
-    query: query.options
-  }).then(
-    (result) => {
-      // Response key mapping
-      let keymap = {
-        tag: 'tag', slug:'slug', title: 'title', date: 'delivery_date', time: 'delivery_time',
-        location: 'delivery_location', last_updated: 'last_updated'
-      };
-      let regexp = new RegExp(config.AFTERSHIP_NOTE_TAGGING);
-      let response = [];
+/**
+ * Returns trackings information
+ * @param  {Object} query
+ * @return {Array}
+ */
+async function getTrackingsInformation(query) {
+  try {
+    const {data} = await aftership.call('GET', '/trackings', {
+      query: query.options
+    });
+    // Response key mapping
+    const keymap = {
+      tag: 'tag', slug:'slug', title: 'title', date: 'delivery_date', time: 'delivery_time',
+      location: 'delivery_location', last_updated: 'last_updated'
+    };
+    const regexp = new RegExp(config.AFTERSHIP_NOTE_TAGGING);
+    const response = [];
 
-      result.data.trackings.forEach((pkg) => {
-        // Ignore tracking for note not matching tagging regexp if specified
-        if (config.AFTERSHIP_NOTE_TAGGING && (!pkg.note || !pkg.note.match(regexp))) {
-          return;
-        }
+    data.trackings.forEach((pkg) => {
+      // Ignore tracking for note not matching tagging regexp if specified
+      if (config.AFTERSHIP_NOTE_TAGGING && (!pkg.note || !pkg.note.match(regexp))) {
+        return;
+      }
 
-        // Set delivery information if currently out for delivery or delivered, otherwise use expected as delivery date
-        if (['OutForDelivery', 'Delivered'].indexOf(pkg.tag) > -1) {
-          pkg.checkpoints.some((checkpoint) => {
-            if (checkpoint.tag == pkg.tag) {
-              // Delivery date and time
-              if (checkpoint.checkpoint_time) {
-                pkg.delivery_date = moment(checkpoint.checkpoint_time).setTimezone(device.timezone).startOf('day');
-                pkg.delivery_time = moment(checkpoint.checkpoint_time).setTimezone(device.timezone).format('LT');
-              }
-
-              // Delivery location
-              let location = [];
-              ['city', 'state', 'country_name', 'zip'].forEach((item) => {
-                if (checkpoint[item]) {
-                  location.push(checkpoint[item]);
-                }
-              });
-              if (location.length) {
-                pkg.delivery_location = location.join(', ');
-              }
-
-              return true;
+      // Set delivery information if currently out for delivery or delivered, otherwise use expected as delivery date
+      if (['OutForDelivery', 'Delivered'].indexOf(pkg.tag) > -1) {
+        pkg.checkpoints.some((checkpoint) => {
+          if (checkpoint.tag == pkg.tag) {
+            // Delivery date and time
+            if (checkpoint.checkpoint_time) {
+              pkg.delivery_date = moment(checkpoint.checkpoint_time).setTimezone(device.timezone).startOf('day');
+              pkg.delivery_time = moment(checkpoint.checkpoint_time).setTimezone(device.timezone).format('LT');
             }
-          });
-        } else if (pkg.expected_delivery) {
-          pkg.delivery_date = moment(pkg.expected_delivery).setTimezone(device.timezone).startOf('day')
-        }
 
-        // Set last updated date if delivery date not defined
-        if (!pkg.delivery_date && pkg.updated_at) {
-          pkg.last_updated = moment(pkg.updated_at).setTimezone(device.timezone).startOf('day');
-        }
-
-        // Ignore tracking for delivered packages older than defined day.
-        if (pkg.tag == 'Delivered' && (
-          (
-            pkg.delivery_date instanceof moment &&
-            pkg.delivery_date.diff(device.today, 'days') < -config.AFTERSHIP_DAYS_PAST_DELIVERED
-          ) || (
-            pkg.last_updated instanceof moment &&
-            pkg.last_updated.diff(device.today, 'days') < -config.AFTERSHIP_DAYS_PAST_DELIVERED
-          )
-        )) {
-          return;
-        }
-
-        // Increase count if determined as multi-package otherwise add new entry
-        response.some((item) => {
-          let multiPackage = Object.keys(item).every((key) => {
-            if (key == 'count') {
-              return true;
-            } else if (key == 'tag') {
-              let tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery'];
-              return tag.indexOf(item.tag) == tag.indexOf(pkg[keymap.tag]);
-            } else if (typeof item[key] !== typeof pkg[keymap[key]]) {
-              return false;
-            } else if (item[key] instanceof moment) {
-              return item[key].diff(pkg[keymap[key]], 'days') == 0;
-            } else {
-              return item[key] === pkg[keymap[key]];
+            // Delivery location
+            const location = [];
+            ['city', 'state', 'country_name', 'zip'].forEach((item) => {
+              if (checkpoint[item]) {
+                location.push(checkpoint[item]);
+              }
+            });
+            if (location.length) {
+              pkg.delivery_location = location.join(', ');
             }
-          });
-          if (multiPackage) {
-            item.count += 1;
+
             return true;
           }
-        }) || response.push({
-          tag: pkg[keymap.tag],
-          slug: pkg[keymap.slug],
-          title: pkg[keymap.title],
-          date: pkg[keymap.date],
-          time: pkg[keymap.time],
-          location: pkg[keymap.location],
-          last_updated: pkg[keymap.last_updated],
-          count: 1
         });
-      });
+      } else if (pkg.expected_delivery) {
+        pkg.delivery_date = moment(pkg.expected_delivery).setTimezone(device.timezone).startOf('day')
+      }
 
-      // Return the sorted configured count limit results
-      return sortTrackingsInformation(response).slice(0, config.AFTERSHIP_TRACKING_COUNT_LIMIT);
-    },
-    (error) => {
-      console.error('Failed to get trackings data:', JSON.stringify(error, null, 2));
-      throw error;
-    }
-  );
+      // Set last updated date if delivery date not defined
+      if (!pkg.delivery_date && pkg.updated_at) {
+        pkg.last_updated = moment(pkg.updated_at).setTimezone(device.timezone).startOf('day');
+      }
+
+      // Ignore tracking for delivered packages older than defined day.
+      if (pkg.tag == 'Delivered' && (
+        (
+          pkg.delivery_date instanceof moment &&
+          pkg.delivery_date.diff(device.today, 'days') < -config.AFTERSHIP_DAYS_PAST_DELIVERED
+        ) || (
+          pkg.last_updated instanceof moment &&
+          pkg.last_updated.diff(device.today, 'days') < -config.AFTERSHIP_DAYS_PAST_DELIVERED
+        )
+      )) {
+        return;
+      }
+
+      // Increase count if determined as multi-package otherwise add new entry
+      response.some((item) => {
+        const multiPackage = Object.keys(item).every((key) => {
+          if (key == 'count') {
+            return true;
+          } else if (key == 'tag') {
+            const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery'];
+            return tag.indexOf(item.tag) == tag.indexOf(pkg[keymap.tag]);
+          } else if (typeof item[key] !== typeof pkg[keymap[key]]) {
+            return false;
+          } else if (item[key] instanceof moment) {
+            return item[key].diff(pkg[keymap[key]], 'days') == 0;
+          } else {
+            return item[key] === pkg[keymap[key]];
+          }
+        });
+        if (multiPackage) {
+          item.count += 1;
+          return true;
+        }
+      }) || response.push({
+        tag: pkg[keymap.tag],
+        slug: pkg[keymap.slug],
+        title: pkg[keymap.title],
+        date: pkg[keymap.date],
+        time: pkg[keymap.time],
+        location: pkg[keymap.location],
+        last_updated: pkg[keymap.last_updated],
+        count: 1
+      });
+    });
+
+    // Return the sorted configured count limit results
+    return sortTrackingsInformation(response).slice(0, config.AFTERSHIP_TRACKING_COUNT_LIMIT);
+  } catch (error) {
+    console.error('Failed to get trackings data:', JSON.stringify(error));
+    throw error;
+  }
 };
 
-// Sort trackings information
+/**
+ * Returns sorted trackings information
+ * @param  {Object} trackings
+ * @return {Object}
+ */
 function sortTrackingsInformation(trackings) {
   if (Array.isArray(trackings)) {
     // Sort response messages based on absolute time difference from today and tag order
     trackings.sort((a, b) => {
-      let tagOrder = ['Delivered', 'AttemptFail', 'Exception', 'OutForDelivery'];
+      const tagOrder = ['Delivered', 'AttemptFail', 'Exception', 'OutForDelivery'];
 
       if (!(a.date instanceof moment)) {
         return 1;
@@ -327,22 +340,28 @@ function sortTrackingsInformation(trackings) {
   return trackings;
 };
 
-// Generate trackings list
-function generateTrackingsList(keyword, footnotes) {
-  let couriers, query;
-
-  // Get AfterShip couriers list
-  return getCourierNameList()
-  // Generate AfterShip trackings query
-  .then((result) => { couriers = result; return formatTrackingsQuery(keyword, couriers); })
-  // Get trackings information
-  .then((result) => { query = result; return getTrackingsInformation(query); })
-  // Format trackings location address
-  .then((trackings) => formatTrackingsAddress(trackings))
-  // Format trackings output
-  .then((trackings) => formatTrackingsList(trackings, couriers, query, footnotes))
-  // Catch all errors
-  .catch((error) => { throw error; });
+/**
+ * Generate trackings list formatted speech output
+ * @param  {String} keyword
+ * @param  {Array}  footnotes
+ * @return {String}
+ */
+async function generateTrackingsList(keyword, footnotes) {
+  try {
+    // Get AfterShip couriers list
+    const couriers = await getCourierNameList()
+    // Generate AfterShip trackings query
+    const query = await formatTrackingsQuery(keyword, couriers);
+    // Get trackings information
+    const trackings = await getTrackingsInformation(query);
+    // Format trackings location address
+    await formatTrackingsAddress(trackings);
+    // Format trackings output
+    return await formatTrackingsList(trackings, couriers, query, footnotes);
+  } catch (error) {
+    // Catch all errors
+    throw error;
+  }
 };
 
 module.exports = {

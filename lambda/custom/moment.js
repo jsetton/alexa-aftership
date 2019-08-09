@@ -23,7 +23,7 @@ moment.prototype.setTimezone = function(timezone) {
   if (this.creationData().input.match(/(?:[+-]\d{2}[:]?\d{2}|Z)$/)) {
     return this.tz(timezone);
   } else {
-    let local = this.clone().tz(timezone);
+    const local = this.clone().tz(timezone);
     return local.add(this.utcOffset() - local.utcOffset(), 'minutes');
   }
 };
