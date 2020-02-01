@@ -20,8 +20,13 @@ then
     exec > /dev/null 2>&1
 fi
 
+deploy_aws_resources() {
+    node ./tools/deployAWSResources.js >/dev/null 2>&1
+    return $?
+}
+
 install_dependencies() {
-    npm install --prefix "$1" >/dev/null 2>&1 
+    npm install --prefix "$1" >/dev/null 2>&1
     return $?
 }
 
@@ -38,8 +43,13 @@ if [[ $TARGET == "all" || $TARGET == "lambda" ]]; then
             exit 1
         fi
     done
+    if deploy_aws_resources; then
+        echo "AWS resources deployed successfully."
+    else
+        echo "There was a problem deploying the AWS resources."
+        exit 1
+    fi
     echo "###########################"
 fi
 
 exit 0
-

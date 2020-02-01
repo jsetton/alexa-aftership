@@ -1,7 +1,7 @@
 'use strict';
 
-const config = require('./config');
 const moment = require('moment-timezone');
+const config = require('./config.js');
 
 moment.updateLocale('en', {
   calendar: {
@@ -13,6 +13,20 @@ moment.updateLocale('en', {
     sameElse: '[on] dddd, MMMM Do'
   },
 });
+
+moment.prototype.countDays = function(date, type) {
+  const dateA = this.clone().startOf('day');
+  const dateB = date.clone().startOf('day');
+  return type === 'from' ? dateA.diff(dateB, 'days') : dateB.diff(dateA, 'days');
+}
+
+moment.prototype.daysFromToday = function() {
+  return this.countDays(moment().tz(this.tz()), 'from');
+};
+
+moment.prototype.daysToToday = function() {
+  return this.countDays(moment().tz(this.tz()), 'to');
+};
 
 moment.prototype.setTimezone = function(timezone) {
   // Check if the timezone provided is valid otherwise set to default config value

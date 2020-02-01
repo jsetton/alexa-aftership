@@ -1,10 +1,66 @@
 'use strict';
 
 const Alexa = require('ask-sdk-core');
-const aftership = require('./aftership');
-const config = require('./config');
-const device = require('./device');
-const { stripSpeechMarkup } = require('./utils');
+const { DynamoDbPersistenceAdapter } = require('ask-sdk-dynamodb-persistence-adapter');
+const aftership = require('./aftership.js');
+const config = require('./config.js');
+const device = require('./device.js');
+const events = require('./events.js');
+const notification = require('./notification.js');
+const { stripSpeechMarkup } = require('./utils.js');
+
+const ProactiveScheduledEventHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'ScheduledEvent.ProactiveEvents'
+  },
+  async handle(handlerInput) {
+    try {
+      // Update device object based on user attributes from database
+      Object.assign(device, await handlerInput.attributesManager.getPersistentAttributes());
+      // Get trackings proactive events
+      const events = await aftership.getProactiveEvents(handlerInput.requestEnvelope.request.interval);
+      // Log proactive events if debug enabled
+      if (config.DEBUG_MODE) {
+        console.log('Proactive events:', JSON.stringify(events));
+      }
+      // Define proactive events notification promises, appending relevant audience property to each event
+      const promises = events.map(event => notification.createProactiveEvent(
+        Object.assign(event, {
+          relevantAudience: {
+            type: 'Unicast',
+            payload: {
+              user: Alexa.getUserId(handlerInput.requestEnvelope)
+            }
+          }
+        })
+      ));
+      // Create all motifications
+      await Promise.all(promises);
+    } catch (error) {
+      console.error('Failed to handle proactive scheduled event:', JSON.stringify(error));
+    }
+  }
+}
+
+const ProactiveSubscriptionChangedHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.ProactiveSubscriptionChanged';
+  },
+  async handle(handlerInput) {
+    try {
+      // Set up notification event schedule if body is defined, otherwise remove it
+      if (typeof handlerInput.requestEnvelope.request.body !== 'undefined') {
+        await events.createSchedule(handlerInput.context.invokedFunctionArn, handlerInput.requestEnvelope.context);
+        console.info('Event schedule has been created.');
+      } else {
+        await events.deleteSchedule();
+        console.info('Event schedule has been deleted.');
+      }
+    } catch (error) {
+      console.error('Failed to handle proactive subscription changed event:', JSON.stringify(error));
+    }
+  }
+};
 
 const LaunchRequestHandler = {
   canHandle(handlerInput) {
@@ -58,6 +114,9 @@ const TrackingSearchIntentHandler = {
       const address = await deviceAddressServiceClient.getCountryAndPostalCode(deviceId);
       // Set device location information based on address
       await device.setLocationInformation(address);
+      // Store device attributes to database
+      handlerInput.attributesManager.setPersistentAttributes({ device: device.getAttributes() });
+      await handlerInput.attributesManager.savePersistentAttributes();
     } catch (error) {
       // Catch device location errors
       if (Object.keys(device.location).length > 0) {
@@ -76,9 +135,9 @@ const TrackingSearchIntentHandler = {
     console.info('Device timezone set to:', device.timezone);
 
     try {
-      // Generate trackings list
-      const speech = await aftership.generateTrackingsList(
-        Alexa.getSlotValue(handlerInput.requestEnvelope, 'keyword'),
+      // Get trackings speech output
+      const speech = await aftership.getSpeechOutput(
+        Alexa.getSlotValue(handlerInput.requestEnvelope, 'query'),
         !config.MUTE_FOOTNOTES ? footnotes : []
       );
       // Send trackings speech output results
@@ -136,7 +195,7 @@ const CancelIntentHandler = {
 
 const UnhandledIntentHandler = {
   canHandle() {
-    return true;
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest';
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
@@ -161,7 +220,7 @@ const ErrorHandler = {
 const LogRequestInterceptor = {
   process(handlerInput) {
     if (config.DEBUG_MODE) {
-      console.debug('Request received:', JSON.stringify(handlerInput.requestEnvelope));
+      console.log('Request received:', JSON.stringify(handlerInput.requestEnvelope));
     }
   }
 };
@@ -169,15 +228,21 @@ const LogRequestInterceptor = {
 const LogResponseInterceptor = {
   process(handlerInput, response) {
     if (config.DEBUG_MODE && response) {
-      console.debug('Response sent:', JSON.stringify(response));
+      console.log('Response sent:', JSON.stringify(response));
     }
   }
 };
 
-const skillBuilder = Alexa.SkillBuilders.custom();
+const persistenceAdapter = new DynamoDbPersistenceAdapter({
+  tableName: 'AlexaAfterShipSkillSettings',
+  createTable: true,
+  partitionKeyName: 'userId'
+});
 
-exports.handler = skillBuilder
+exports.handler = Alexa.SkillBuilders.custom()
   .addRequestHandlers(
+    ProactiveScheduledEventHandler,
+    ProactiveSubscriptionChangedHandler,
     LaunchRequestHandler,
     TrackingSearchIntentHandler,
     HelpIntentHandler,
@@ -189,5 +254,6 @@ exports.handler = skillBuilder
   .addResponseInterceptors(LogResponseInterceptor)
   .addErrorHandlers(ErrorHandler)
   .withApiClient(new Alexa.DefaultApiClient())
+  .withPersistenceAdapter(persistenceAdapter)
   .withSkillId(config.APP_ID)
   .lambda();

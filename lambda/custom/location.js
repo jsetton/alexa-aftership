@@ -1,8 +1,8 @@
 'use strict';
 
-const config = require('./config');
-const moment = require('./moment');
-const request = require('request');
+const request = require('request-promise-native');
+const config = require('./config.js');
+const moment = require('./moment.js');
 
 /**
  * Get Google Maps geocode data
@@ -11,19 +11,19 @@ const request = require('request');
  */
 function getGoogleMapsGeoCode(address) {
   const options = {
-    url: `${config.GOOGLE_MAPS_API_ENDPOINT}/geocode/json`,
+    method: 'GET',
+    uri: `${config.GOOGLE_MAPS_API_ENDPOINT}/geocode/json`,
     qs: {
-      address: address,
+      address: address.replace(/\s+/g, '+'),
       key: config.GOOGLE_MAPS_API_KEY
     },
-    method: 'GET'
+    json: true
   };
 
-  return new Promise((resolve, reject) => {
-    if (config.DEBUG_MODE)
-      console.log('Google Maps geocode query:', JSON.stringify(options));
-    handleApiRequest(options, resolve, reject);
-  });
+  if (config.DEBUG_MODE)
+    console.log('Google Maps geocode query:', JSON.stringify(options));
+
+  return request(options);
 };
 
 /**
@@ -34,11 +34,11 @@ function getGoogleMapsGeoCode(address) {
  */
 async function getGeoLocation(address, ignoreError) {
   try {
-    const geodata = await getGoogleMapsGeoCode(address);
+    const { results } = await getGoogleMapsGeoCode(address);
     const result = {};
 
-    if (Array.isArray(geodata.results) && geodata.results.length > 0) {
-      geodata.results[0].address_components.forEach((component) => {
+    if (Array.isArray(results) && results.length > 0) {
+      results[0].address_components.forEach((component) => {
         if (component.types.indexOf('postal_code') > -1) {
           result.zipcode = component.long_name;
         } else if (component.types.indexOf('locality') > -1) {
@@ -52,8 +52,8 @@ async function getGeoLocation(address, ignoreError) {
         }
       });
 
-      result.lat = geodata.results[0].geometry.location.lat;
-      result.lng = geodata.results[0].geometry.location.lng;
+      result.lat = results[0].geometry.location.lat;
+      result.lng = results[0].geometry.location.lng;
     }
 
     return result;
@@ -71,19 +71,20 @@ async function getGeoLocation(address, ignoreError) {
  */
 function getGoogleMapsTimezone(location) {
   const options = {
-    url: `${config.GOOGLE_MAPS_API_ENDPOINT}/timezone/json`,
+    method: 'GET',
+    uri: `${config.GOOGLE_MAPS_API_ENDPOINT}/timezone/json`,
     qs: {
       location: location,
       timestamp: moment().unix(),
       key: config.GOOGLE_MAPS_API_KEY
     },
-    method: 'GET'
+    json: true
   };
-  return new Promise((resolve, reject) => {
-    if (config.DEBUG_MODE)
-      console.debug('Google Maps timezone query:', JSON.stringify(options));
-    handleApiRequest(options, resolve, reject);
-  });
+
+  if (config.DEBUG_MODE)
+    console.log('Google Maps timezone query:', JSON.stringify(options));
+
+  return request(options);
 };
 
 /**
@@ -103,27 +104,7 @@ async function getTimezoneId(location, ignoreError) {
   }
 };
 
-/**
- * Handle API request using Promise functions
- * @param  {Object}   options
- * @param  {Function} resolve
- * @param  {Function} reject
- */
-function handleApiRequest(options, resolve, reject) {
-  request(options, (error, response, body) => {
-    const json = JSON.parse(body);
-
-    if (error) {
-      reject(error);
-    } else if (response.statusCode != 200 || (json.status && json.status != 'OK')) {
-      reject(json);
-    } else {
-      resolve(json);
-    }
-  });
-};
-
 module.exports = {
-  getGeoLocation: getGeoLocation,
-  getTimezoneId: getTimezoneId
+  getGeoLocation,
+  getTimezoneId
 };
