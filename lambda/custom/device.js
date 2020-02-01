@@ -1,8 +1,7 @@
 'use strict';
 
-const config = require('./config');
-const location = require('./location');
-const moment = require('./moment');
+const config = require('./config.js');
+const location = require('./location.js');
 
 /**
  * Defines device location client class
@@ -13,13 +12,11 @@ class DeviceLocationClient {
     this.timezone = config.DEFAULT_TIMEZONE;
   }
 
-  get timezone() {
-    return this._timezone;
-  }
-
-  set timezone(value) {
-    this._timezone = value;
-    this.today = moment().tz(value).startOf('day');
+  getAttributes() {
+    return {
+      location: this.location,
+      timezone: this.timezone
+    };
   }
 
   async setLocationInformation(address) {

@@ -81,7 +81,7 @@ function stripSpeechMarkup(text) {
 };
 
 module.exports = {
-  formatSpeechMarkup: formatSpeechMarkup,
-  sayAsSpeechMarkup: sayAsSpeechMarkup,
-  stripSpeechMarkup: stripSpeechMarkup
+  formatSpeechMarkup,
+  sayAsSpeechMarkup,
+  stripSpeechMarkup
 };

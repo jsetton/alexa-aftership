@@ -8,17 +8,17 @@
           "name": "TrackingSearchIntent",
           "samples": [
             "where's my stuff",
-            "track my packages {keyword}",
-            "do i have any packages {keyword}",
-            "if i have any packages {keyword}",
-            "track my shipments {keyword}",
-            "do i have any shipments {keyword}",
-            "if i have any shipments {keyword}"
+            "track my packages {query}",
+            "do i have any packages {query}",
+            "if i have any packages {query}",
+            "track my shipments {query}",
+            "do i have any shipments {query}",
+            "if i have any shipments {query}"
           ],
           "slots": [
             {
-              "name": "keyword",
-              "type": "keywordType"
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
             }
           ]
         },
@@ -30,31 +30,6 @@
         },
         {
           "name": "AMAZON.CancelIntent"
-        }
-      ],
-      "types": [
-        {
-          "name": "keywordType",
-          "values": [
-            {
-              "name": {
-                "value": "keyword1",
-                "synonyms": []
-              }
-            },
-            {
-              "name": {
-                "value": "keyword2",
-                "synonyms": []
-              }
-            },
-            {
-              "name": {
-                "value": "keyword3",
-                "synonyms": []
-              }
-            }
-          ]
         }
       ]
     }

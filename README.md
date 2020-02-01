@@ -24,6 +24,12 @@ Once you have installed [ASK CLI](https://developer.amazon.com/docs/smapi/quick-
 $ ask init
 ```
 
+For AWS resources deployment, you will need to install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html) and configure it:
+
+```bash
+$ aws configure
+```
+
 ## Credentials
 
 ### AfterShip
@@ -58,7 +64,7 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
 
 ## Deployment
 
-1. Deploy the skill and the lambda function in one step:
+1. Deploy the skill and all AWS resources in one step:
 
     ```
     $ ask deploy [--force] (Force deployment if necessary)
@@ -67,7 +73,6 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
     Skill Id: <skillId>
     Skill metadata deploy finished.
     Model deployment finished.
-    [Warn]: No runtime and handler settings found for alexaUsage "custom/default" when creating Lambda function. CLI will use "nodejs8.10" and "index.handler" as the Runtime and Handler to create Lambda. You can update the runtime and handler for the target Lambda in the project config and deploy again if you want to set differently.
     Lambda deployment finished.
     Lambda function(s) created:
       [Lambda ARN] <lambdaArn>
@@ -75,11 +80,23 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
     Your skill is now deployed and enabled in the development stage. Try simulate your Alexa skill using "ask dialog" command.
     ```
 
-2. Go to the [lambda function dashboard](https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions/alexa-aftership) and add the environment variables for the AfterShip & Google Maps API Keys and the Application Skill ID listed in the previous step, as shown in the screenshot below. **Make sure to click save at the top of the page to apply the settings.**
+2. Get the skill client id and secret, using the skill id from previous step:
+
+    ```
+    $ ask api get-skill-credentials -s <skillId>
+    {
+      "skillMessagingCredentials": {
+        "clientId": <clientId>,
+        "clientSecret": <clientSecret>
+      }
+    }
+    ```
+
+3. Go to the [lambda function dashboard](https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions/alexa-aftership) and add the environment variables for the AfterShip & Google Maps API Keys and the Application Skill ID, Client ID & Secret listed in the previous steps, as shown in the screenshot below. **Make sure to click save at the top of the page to apply the settings.**
 
     ![](screenshots/lambda_env_variables.png)
 
-3. If you aren't located in the *US/Eastern* time zone, you should also add your [time zone TZ name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) to the *DEFAULT_TIMEZONE* variable; same with *DEFAULT_COUNTRY* if not in the *United States*. Here is a list of the other configuration settings that can be set via an environment variable if need to be:
+4. If you aren't located in the *US/Eastern* time zone, you should also add your [time zone TZ name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) to the *DEFAULT_TIMEZONE* variable; same with *DEFAULT_COUNTRY* if not in the *United States*. Here is a list of the other configuration settings that can be set via an environment variable if need to be:
 
     * *AFTERSHIP_DAYS_PAST_DELIVERED*<br>
     Number of days since delivered packages are still included in results. (Default: 1)
@@ -91,9 +108,11 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
     Maximum number of tracking items returned per query. (Default: 20)
     * *MUTE_FOOTNOTES*<br>
     Mute skill location related error notifications at the end of the speech output. (Default: *disabled*)
+    * *SCHEDULE_RATE*<br>
+    Proactive event notification check schedule rate in minutes. (Default: 30)
 
-4. In your [Alexa Skill Console](https://alexa.amazon.com/spa/index.html#skills/your-skills), find the AfterShip skill under the "Dev Skills" tab and enable it. Make sure that the Device Country and Postal Code permission is enabled as shown below.
+5. In your [Alexa Skill Console](https://alexa.amazon.com/spa/index.html#skills/your-skills), find the AfterShip skill under the "Dev Skills" tab and enable it. Make sure that the Device Country and Postal Code, and Alexa Notifications permissions are enabled as shown below.
 
     ![](screenshots/alexa_skills_enable.png)
 
-5. That should be it! Now, just say to your favorite Echo device: "*Alexa, ask aftership where's my stuff*". If you have any errors, please check the [lambda function logs](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/aws/lambda/ask-custom-alexa-aftership-default). If necessary, you can enable the function debug mode, to increase the log verbosity, by setting the lambda function environment variable *DEBUG_MODE* to *on*.
+6. That should be it! Now, just say to your favorite Echo device: "*Alexa, ask aftership where's my stuff*". If you have any errors, please check the [lambda function logs](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/aws/lambda/ask-custom-alexa-aftership-default). If necessary, you can enable the function debug mode, to increase the log verbosity, by setting the lambda function environment variable *DEBUG_MODE* to *on*.

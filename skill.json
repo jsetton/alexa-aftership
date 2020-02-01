@@ -9,10 +9,10 @@
             "Alexa, ask aftership to track my shipments from Amazon",
             "Alexa, ask aftership do I have any packages out for delivery?"
           ],
-          "name": "AfterShip Shipment Tracking",
+          "name": "AfterShip",
           "description": "Unofficial AfterShip Shipment Tracking Skill.",
-          "smallIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/icons/aftership-108.png",
-          "largeIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/icons/aftership-512.png"
+          "smallIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-108.png",
+          "largeIconUri": "https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-512.png"
         }
       },
       "isAvailableWorldwide": true,
@@ -29,10 +29,31 @@
         }
       }
     },
+    "events": {
+      "publications": [
+        {
+          "eventName": "AMAZON.OrderStatus.Updated"
+        }
+      ],
+      "endpoint": {
+        "uri": "alexa-aftership"
+      },
+      "subscriptions": [
+        {
+          "eventName": "SKILL_DISABLED"
+        },
+        {
+          "eventName": "SKILL_PROACTIVE_SUBSCRIPTION_CHANGED"
+        }
+      ]
+    },
     "manifestVersion": "1.0",
     "permissions": [
       {
         "name": "alexa:devices:all:address:country_and_postal_code:read"
+      },
+      {
+        "name": "alexa::devices:all:notifications:write"
       }
     ],
     "privacyAndCompliance": {
