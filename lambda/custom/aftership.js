@@ -109,11 +109,6 @@ class AftershipClient {
       const { data } = await this.api.call('GET', '/trackings', {
         query: query.options
       });
-      // Response key mapping
-      const keymap = {
-        id: 'tracking_number', tag: 'tag', slug:'slug', courier: 'courier', title: 'title',
-        date: 'delivery_date', location: 'delivery_location', lastUpdated: 'last_updated'
-      };
       const regexp = new RegExp(config.AFTERSHIP_NOTE_TAGGING);
       const response = [];
 
@@ -169,28 +164,35 @@ class AftershipClient {
           return;
         }
 
-        // Increase count if determined as multi-package otherwise add new entry
-        response.some((item) => {
-          const multiPackage = Object.keys(item).every((key) => {
-            if (key === 'count') {
-              return true;
-            } else if (key === 'tag') {
-              const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery'];
-              return tag.indexOf(item.tag) === tag.indexOf(pkg[keymap.tag]);
-            } else if (typeof item[key] !== typeof pkg[keymap[key]]) {
-              return false;
-            } else if (item[key] instanceof moment) {
-              return item[key].diff(pkg[keymap[key]], 'days') === 0;
-            } else {
-              return item[key] === pkg[keymap[key]];
-            }
-          });
-          if (multiPackage) {
-            item.count += 1;
+        // Response key mapping
+        const keymap = {
+          tag: 'tag', slug:'slug', courier: 'courier', title: 'title',
+          date: 'delivery_date', location: 'delivery_location', lastUpdated: 'last_updated'
+        };
+        // Find package part of multi-package
+        const multiPkg = response.find((item) => Object.keys(item).every((key) => {
+          if (typeof keymap[key] === 'undefined' || key === 'lastUpdated') {
             return true;
+          } else if (typeof item[key] !== typeof pkg[keymap[key]]) {
+            return false;
+          } else if (item[key] instanceof moment) {
+            return item[key].diff(pkg[keymap[key]], 'days') === 0;
+          } else if (key === 'tag') {
+            const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery'];
+            return tag.indexOf(item.tag) === tag.indexOf(pkg[keymap.tag]);
+          } else {
+            return item[key] === pkg[keymap[key]];
           }
-        }) || response.push(Object.entries(keymap).reduce(
-          (item, [key, map]) => Object.assign(item, {[key]: pkg[map]}), {count: 1}));
+        }));
+
+        // Update multi-package if found, otherwise add new entry
+        if (typeof multiPkg !== 'undefined') {
+          multiPkg.count += 1;
+          multiPkg.trackingIds.push(pkg.tracking_number);
+        } else {
+          response.push(Object.entries(keymap).reduce((item, [key, map]) =>
+            Object.assign(item, {[key]: pkg[map]}), {count: 1, trackingIds: [pkg.tracking_number]}));
+        }
       });
 
       // Return the sorted configured count limit results
@@ -369,34 +371,36 @@ class AftershipClient {
     // Iterate over trackings with last updated date within schedule rate period and suppoerted status
     trackings
       .filter(pkg => now.diff(pkg.lastUpdated, 'minutes') < interval && pkg.tag in status)
-      .forEach((pkg) => {
-        events.push({
-          timestamp: pkg.lastUpdated.toISOString(),
-          referenceId: pkg.id,
-          expiryTime: now.endOf('day').toISOString(),
-          event: {
-            name: 'AMAZON.OrderStatus.Updated',
-            payload: {
-              state: Object.assign({
-                status: status[pkg.tag]
-              }, pkg.date && pkg.tag === 'Delivered' && {
-                deliveredOn: pkg.date.toISOString()
-              }),
-              order: {
-                seller: {
-                  name: 'localizedattribute:sellerName'
+      .forEach((pkg) => pkg.trackingIds
+        .forEach((trackingId) => {
+          events.push({
+            timestamp: pkg.lastUpdated.toISOString(),
+            referenceId: trackingId,
+            expiryTime: now.endOf('day').toISOString(),
+            event: {
+              name: 'AMAZON.OrderStatus.Updated',
+              payload: {
+                state: Object.assign({
+                  status: status[pkg.tag]
+                }, pkg.date && pkg.tag === 'Delivered' && {
+                  deliveredOn: pkg.date.toISOString()
+                }),
+                order: {
+                  seller: {
+                    name: 'localizedattribute:sellerName'
+                  }
                 }
               }
-            }
-          },
-          localizedAttributes: [
-            {
-              locale: 'en-US',
-              sellerName: pkg.title
-            }
-          ],
+            },
+            localizedAttributes: [
+              {
+                locale: 'en-US',
+                sellerName: pkg.title
+              }
+            ],
+          })
         })
-      });
+      );
 
     return events;
   }
