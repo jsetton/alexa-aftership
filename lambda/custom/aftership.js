@@ -14,6 +14,7 @@ const { formatSpeechMarkup, sayAsSpeechMarkup } = require('./utils');
 const trackingStatus = {
   InfoReceived: 'waiting to be received by the carrier',
   InTransit: 'in transit',
+  AvailableForPickup: 'available for pickup',
   OutForDelivery: 'out for delivery',
   AttemptFail: 'failed to be delivered by the carrier',
   Delivered: 'delivered',
@@ -78,7 +79,7 @@ class AftershipClient {
       options: Object.assign({
         created_at_min: moment().subtract(config.AFTERSHIP_DAYS_SEARCH, 'days').format(),
         fields: 'tracking_number,title,slug,tag,last_updated_at,expected_delivery,note,checkpoints'
-        // tag: 'InfoReceived,InTransit,OutForDelivery,AttemptFail,Delivered',
+        // tag: 'InfoReceived,InTransit,AvailableForPickup,OutForDelivery,AttemptFail,Delivered',
       }, slugs.length > 0 ? {
         slug: slugs.join(',')
       } : tag in trackingStatus ? {
@@ -124,8 +125,12 @@ class AftershipClient {
         // Set last updated date
         pkg.last_updated = moment(pkg.last_updated_at).setTimezone(device.timezone);
 
-        // Set delivery information if currently out for delivery or delivered, otherwise use expected as delivery date
-        if (['OutForDelivery', 'Delivered'].indexOf(pkg.tag) > -1) {
+        // Set tag event number based on checkpoints
+        pkg.tag_event_number = pkg.checkpoints.filter(checkpoint => checkpoint.tag === pkg.tag).length;
+
+        // Set delivery information if currently available for pickup, out for delivery or delivered,
+        //  otherwise use expected as delivery date
+        if (['AvailableForPickup', 'OutForDelivery', 'Delivered'].includes(pkg.tag)) {
           pkg.checkpoints.some((checkpoint) => {
             if (checkpoint.tag === pkg.tag) {
               // Delivery date
@@ -166,22 +171,23 @@ class AftershipClient {
 
         // Response key mapping
         const keymap = {
-          tag: 'tag', slug:'slug', courier: 'courier', title: 'title',
-          date: 'delivery_date', location: 'delivery_location', lastUpdated: 'last_updated'
+          tag: 'tag', slug: 'slug', courier: 'courier', title: 'title',
+          date: 'delivery_date', location: 'delivery_location',
+          lastUpdated: 'last_updated', tagEventNumber: 'tag_event_number',
         };
         // Find package part of multi-package
-        const multiPkg = response.find((item) => Object.keys(keymap).every((key) => {
-          if (key === 'lastUpdated') {
+        const multiPkg = response.find((item) => Object.entries(keymap).every(([key, attr]) => {
+          if (key === 'lastUpdated' || key === 'tagEventNumber') {
             return true;
           } else if (key === 'tag') {
-            const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery'];
-            return tag.indexOf(item.tag) === tag.indexOf(pkg[keymap.tag]);
-          } else if (typeof item[key] !== typeof pkg[keymap[key]]) {
+            const tag = ['AttemptFail', 'AvailableForPickup', 'Exception', 'Delivered', 'OutForDelivery'];
+            return tag.indexOf(item[key]) === tag.indexOf(pkg[attr]);
+          } else if (typeof item[key] !== typeof pkg[attr]) {
             return false;
           } else if (item[key] instanceof moment) {
-            return item[key].diff(pkg[keymap[key]], 'days') === 0;
+            return item[key].diff(pkg[attr], 'days') === 0;
           } else {
-            return item[key] === pkg[keymap[key]];
+            return item[key] === pkg[attr];
           }
         }));
 
@@ -190,8 +196,8 @@ class AftershipClient {
           multiPkg.count += 1;
           multiPkg.trackingIds.push(pkg.tracking_number);
         } else {
-          response.push(Object.entries(keymap).reduce((item, [key, map]) =>
-            Object.assign(item, {[key]: pkg[map]}), {count: 1, trackingIds: [pkg.tracking_number]}));
+          response.push(Object.entries(keymap).reduce((item, [key, attr]) =>
+            Object.assign(item, {[key]: pkg[attr]}), {count: 1, trackingIds: [pkg.tracking_number]}));
         }
       });
 
@@ -212,7 +218,7 @@ class AftershipClient {
     if (Array.isArray(trackings)) {
       // Sort response messages based on absolute time difference from now and tag order
       trackings.sort((a, b) => {
-        const tagOrder = ['Delivered', 'AttemptFail', 'Exception', 'OutForDelivery'];
+        const tagOrder = ['Delivered', 'AttemptFail', 'Exception', 'OutForDelivery', 'AvailableForPickup'];
 
         if (!(a.date instanceof moment)) {
           return 1;
@@ -254,7 +260,7 @@ class AftershipClient {
       if (address) {
         // Determine if address & device location are the same
         if (Object.keys(address).every((key) => {
-          return ['lat', 'lng'].indexOf(key) === -1 ? address[key] === device.location[key] : true;
+          return ['lat', 'lng'].includes(key) || address[key] === device.location[key];
         })) {
           trackings[index].address = 'here';
         } else if (!address.country || address.country === config.DEFAULT_COUNTRY) {
@@ -283,8 +289,8 @@ class AftershipClient {
     // Iterate over trackings
     trackings.forEach((pkg) => {
       // Populate summary table
-      const tag = ['AttemptFail', 'Exception', 'Delivered', 'OutForDelivery']
-        .indexOf(pkg.tag) > -1 ? pkg.tag : 'ExpectedDelivery';
+      const tag = ['AttemptFail', 'AvailableForPickup', 'Exception', 'Delivered', 'OutForDelivery']
+        .includes(pkg.tag) ? pkg.tag : 'ExpectedDelivery';
       summary[tag] = (summary[tag] || 0) + pkg.count;
 
       // Set response message
@@ -311,7 +317,7 @@ class AftershipClient {
           message.push(
             pkg.count === 1 ? 'was' : 'were',
             pkg.lastUpdated && !pkg.date ? 'marked as' : '', trackingStatus['Delivered'],
-            pkg.address ? pkg.address != 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'here' : '',
+            pkg.address ? pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'here' : '',
             pkg.date ? pkg.date.calendar() : pkg.lastUpdated ? pkg.lastUpdated.calendar() : '',
             pkg.date ? `at ${pkg.date.format('LT')}` : ''
           );
@@ -319,7 +325,14 @@ class AftershipClient {
         case 'OutForDelivery':
           message.push(
             pkg.count === 1 ? 'is' : 'are', trackingStatus['OutForDelivery'],
-            pkg.address ? pkg.address != 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'towards here' : '',
+            pkg.address ? pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'towards here' : '',
+            pkg.date ? `since ${pkg.date.format('LT')}` : ''
+          );
+          break;
+        case 'AvailableForPickup':
+          message.push(
+            pkg.count === 1 ? 'is' : 'are', trackingStatus['AvailableForPickup'],
+            pkg.address && pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : '',
             pkg.date ? `since ${pkg.date.format('LT')}` : ''
           );
           break;
@@ -338,7 +351,7 @@ class AftershipClient {
     const response = {
       summary: 'Currently, you have '.concat(
         Object.keys(summary).reduce((result, status, idx, obj) => result.concat(
-          idx > 0 ? idx != obj.length - 1 ? ', ' : ', and ' : '',
+          idx > 0 ? idx !== obj.length - 1 ? ', ' : ', and ' : '',
           summary[status], summary[status] > 1 ? ' packages ' : ' package ', trackingStatus[status]
         ), '') || (query.options.tag ? `no package ${trackingStatus[query.options.tag]}` : 'no package'),
         query.options.keyword || query.options.slug ? ` from ${query.string}` : '',
@@ -366,24 +379,36 @@ class AftershipClient {
     const events = [];
     // Define now based on device timezone
     const now = moment().tz(device.timezone);
-    // Define proactive event supported status
-    const status = {'Delivered': 'ORDER_DELIVERED', 'OutForDelivery': 'ORDER_OUT_FOR_DELIVERY'};
-    // Iterate over trackings with last updated date within schedule rate period and suppoerted status
+    // Define proactive supported tracking events
+    const trackingEvents = {
+      'InTransit': {'status': 'ORDER_SHIPPED', 'all': false},
+      'OutForDelivery': {'status': 'ORDER_OUT_FOR_DELIVERY', 'all': true},
+      'Delivered': {'status': 'ORDER_DELIVERED', 'all': true},
+    };
+    // Iterate over trackings with last updated date within schedule rate period,
+    //  and supported tracking events & occurrence number
     trackings
-      .filter(pkg => now.diff(pkg.lastUpdated, 'minutes') < interval && pkg.tag in status)
+      .filter(pkg =>
+        now.diff(pkg.lastUpdated, 'minutes') < interval &&
+        pkg.tag in trackingEvents && (trackingEvents[pkg.tag].all || pkg.tagEventNumber === 1))
       .forEach((pkg) => pkg.trackingIds
         .forEach((trackingId) => {
           events.push({
-            timestamp: pkg.lastUpdated.toISOString(),
+            timestamp: now.toISOString(),
             referenceId: trackingId,
             expiryTime: now.endOf('day').toISOString(),
             event: {
               name: 'AMAZON.OrderStatus.Updated',
               payload: {
                 state: Object.assign({
-                  status: status[pkg.tag]
-                }, pkg.date && pkg.tag === 'Delivered' && {
+                  status: trackingEvents[pkg.tag].status,
+                  enterTimeStamp: pkg.lastUpdated.toISOString()
+                }, pkg.date && trackingEvents[pkg.tag].status === 'ORDER_DELIVERED' && {
                   deliveredOn: pkg.date.toISOString()
+                }, pkg.date && trackingEvents[pkg.tag].status === 'ORDER_SHIPPED' && {
+                  deliveryDetails: {
+                    expectedArrival: pkg.date.endOf('day').toISOString()
+                  }
                 }),
                 order: {
                   seller: {
