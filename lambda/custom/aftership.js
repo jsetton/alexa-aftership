@@ -125,33 +125,33 @@ class AftershipClient {
         // Set last updated date
         pkg.last_updated = moment(pkg.last_updated_at).setTimezone(device.timezone);
 
-        // Set tag event number based on checkpoints
-        pkg.tag_event_number = pkg.checkpoints.filter(checkpoint => checkpoint.tag === pkg.tag).length;
+        // Set tag event number based on checkpoints tag and unique created_at parameters
+        pkg.tag_event_number = pkg.checkpoints
+          .filter((checkpoint, index, array) => checkpoint.tag === pkg.tag && array
+            .findIndex(item => item.created_at === checkpoint.created_at) === index).length;
 
         // Set delivery information if currently available for pickup, out for delivery or delivered,
         //  otherwise use expected as delivery date
         if (['AvailableForPickup', 'OutForDelivery', 'Delivered'].includes(pkg.tag)) {
-          pkg.checkpoints.some((checkpoint) => {
-            if (checkpoint.tag === pkg.tag) {
-              // Delivery date
-              if (checkpoint.checkpoint_time) {
-                pkg.delivery_date = moment(checkpoint.checkpoint_time).setTimezone(device.timezone);
-              }
+          // Find latest checkpoint tag event
+          const checkpoint = pkg.checkpoints.slice().reverse().find(checkpoint => checkpoint.tag === pkg.tag);
 
-              // Delivery location
-              const location = [];
-              ['city', 'state', 'country_name', 'zip'].forEach((item) => {
-                if (checkpoint[item]) {
-                  location.push(checkpoint[item]);
-                }
-              });
-              if (location.length > 0) {
-                pkg.delivery_location = location.join(', ');
-              }
-
-              return true;
+          if (checkpoint) {
+            // Delivery date
+            if (checkpoint.checkpoint_time) {
+              pkg.delivery_date = moment(checkpoint.checkpoint_time).setTimezone(device.timezone);
             }
-          });
+            // Delivery location
+            const location = [];
+            ['city', 'state', 'country_name', 'zip'].forEach((item) => {
+              if (checkpoint[item]) {
+                location.push(checkpoint[item]);
+              }
+            });
+            if (location.length > 0) {
+              pkg.delivery_location = location.join(', ');
+            }
+          }
         } else if (pkg.expected_delivery) {
           pkg.delivery_date = moment(pkg.expected_delivery).setTimezone(device.timezone);
         }
@@ -388,7 +388,7 @@ class AftershipClient {
     // Iterate over trackings with last updated date within schedule rate period,
     //  and supported tracking events & occurrence number
     trackings
-      .filter(pkg =>
+      .filter((pkg) =>
         now.diff(pkg.lastUpdated, 'minutes') < interval &&
         pkg.tag in trackingEvents && (trackingEvents[pkg.tag].all || pkg.tagEventNumber === 1))
       .forEach((pkg) => pkg.trackingIds
