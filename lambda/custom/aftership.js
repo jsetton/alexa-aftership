@@ -252,9 +252,7 @@ class AftershipClient {
    */
   async getTrackingsAddress(trackings) {
     const geodata = await Promise.all(
-      trackings.reduce((promises, tracking) =>
-        promises.concat(tracking.location ? location.getGeoLocation(tracking.location, true) : undefined), [])
-    );
+      trackings.map(tracking => tracking.location && location.getGeoLocation(tracking.location, true)));
 
     geodata.forEach((address, index) => {
       if (address) {
@@ -372,12 +370,12 @@ class AftershipClient {
   /**
    * Returns proactive events trackings list
    * @param  {Object} trackings
-   * @param  {Number} interval
+   * @param  {String} lastEvent
    * @return {Array}
    */
-  getTrackingsProactiveEvents(trackings, interval) {
+  getTrackingsProactiveEvents(trackings, lastEvent) {
     const events = [];
-    // Define now based on device timezone
+    // Define current date based on device timezone
     const now = moment().tz(device.timezone);
     // Define proactive supported tracking events
     const trackingEvents = {
@@ -385,11 +383,11 @@ class AftershipClient {
       'OutForDelivery': {'status': 'ORDER_OUT_FOR_DELIVERY', 'all': true},
       'Delivered': {'status': 'ORDER_DELIVERED', 'all': true},
     };
-    // Iterate over trackings with last updated date within schedule rate period,
+    // Iterate over trackings with last updated date after last event date,
     //  and supported tracking events & occurrence number
     trackings
       .filter((pkg) =>
-        now.diff(pkg.lastUpdated, 'minutes') < interval &&
+        pkg.lastUpdated.isAfter(lastEvent) &&
         pkg.tag in trackingEvents && (trackingEvents[pkg.tag].all || pkg.tagEventNumber === 1))
       .forEach((pkg) => pkg.trackingIds
         .forEach((trackingId) => {
@@ -433,17 +431,17 @@ class AftershipClient {
 
 /**
  * Return trackings proactive events list
- * @param  {Number} interval
+ * @param  {String} lastEvent
  * @return {Promise}
  */
-async function getProactiveEvents(interval) {
+async function getProactiveEvents(lastEvent) {
   try {
     // Initialize AfterShip client
     const client = new AftershipClient();
     // Get trackings information
     const trackings = await client.getTrackingsInformation();
     // Return trackings proactive events
-    return client.getTrackingsProactiveEvents(trackings, interval);
+    return client.getTrackingsProactiveEvents(trackings, lastEvent);
   } catch (error) {
     // Catch all errors
     throw error;

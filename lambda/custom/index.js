@@ -7,6 +7,7 @@ const { ProactiveEventsApi, SkillMessagingApi } = require('./api.js');
 const config = require('./config.js');
 const device = require('./device.js');
 const events = require('./events.js');
+const moment = require('./moment.js');
 const { stripSpeechMarkup } = require('./utils.js');
 
 const SkillEventHandler = {
@@ -44,12 +45,16 @@ const SkillMessagingHandler = {
   },
   async handle(handlerInput) {
     try {
-      // Update device object based on user attributes from database
-      Object.assign(device, await handlerInput.attributesManager.getPersistentAttributes());
+      // Get latest user attributes from database
+      const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+      // Update device object based on user attribute
+      Object.assign(device, attributes.device);
+      // Define current date based on device timezone
+      const now = moment().tz(device.timezone);
       // Create proactive events if requested
       if (handlerInput.requestEnvelope.request.message.event === 'getProactiveEvents') {
         // Get trackings proactive events
-        const events = await aftership.getProactiveEvents(handlerInput.requestEnvelope.request.message.interval);
+        const events = await aftership.getProactiveEvents(attributes.lastProactiveEvent);
         // Log proactive events if debug enabled
         if (config.DEBUG_MODE) {
           console.log('Proactive events:', JSON.stringify(events));
@@ -67,8 +72,13 @@ const SkillMessagingHandler = {
             }
           })
         ));
-        // Create all motifications
+        // Create all notifications
         await Promise.all(promises);
+        // Store latest user attributes to database
+        handlerInput.attributesManager.setPersistentAttributes(Object.assign(attributes, {
+          lastProactiveEvent: now.toISOString()
+        }));
+        await handlerInput.attributesManager.savePersistentAttributes();
       }
     } catch (error) {
       console.error('Failed to handle skill messaging event:', JSON.stringify(error));
@@ -128,8 +138,12 @@ const TrackingSearchIntentHandler = {
       const address = await deviceAddressServiceClient.getCountryAndPostalCode(deviceId);
       // Set device location information based on address
       await device.setLocationInformation(address);
-      // Store device attributes to database
-      handlerInput.attributesManager.setPersistentAttributes({ device: device.getAttributes() });
+      // Get latest user attributes from database
+      const attributes = await handlerInput.attributesManager.getPersistentAttributes();
+      // Store latest user attributes to database
+      handlerInput.attributesManager.setPersistentAttributes(Object.assign(attributes, {
+        device: device.getAttributes()
+      }));
       await handlerInput.attributesManager.savePersistentAttributes();
     } catch (error) {
       // Catch device location errors

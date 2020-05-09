@@ -2,6 +2,7 @@
 
 const config = require('./config.js');
 const location = require('./location.js');
+const { tz } = require('./moment.js');
 
 /**
  * Defines device location client class
@@ -9,7 +10,18 @@ const location = require('./location.js');
 class DeviceLocationClient {
   constructor() {
     this.location = {};
-    this.timezone = config.DEFAULT_TIMEZONE;
+  }
+
+  get timezone() {
+    return this._timezone || config.DEFAULT_TIMEZONE;
+  }
+
+  set timezone(value) {
+    const zone = tz.zone(value);
+    // Update timezone property only if valid
+    if (zone) {
+      this._timezone = zone.name;
+    }
   }
 
   getAttributes() {
