@@ -1,7 +1,6 @@
 'use strict';
 
 const moment = require('moment-timezone');
-const config = require('./config.js');
 
 moment.updateLocale('en', {
   calendar: {
@@ -29,12 +28,9 @@ moment.prototype.daysToToday = function() {
 };
 
 moment.prototype.setTimezone = function(timezone) {
-  // Check if the timezone provided is valid otherwise set to default config value
-  if (moment.tz.zone(timezone) === null) {
-    timezone = config.DEFAULT_TIMEZONE;
-  }
+  const input = this.creationData().input;
   // Check if input timestamp included timezone information
-  if (this.creationData().input.match(/(?:[+-]\d{2}[:]?\d{2}|Z)$/)) {
+  if (typeof input !== 'string' || input.match(/(?:[+-]\d{2}[:]?\d{2}|Z)$/)) {
     return this.tz(timezone);
   } else {
     const local = this.clone().tz(timezone);

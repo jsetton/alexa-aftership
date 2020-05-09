@@ -42,8 +42,7 @@ function createTarget(functionArn, userId) {
         'source': 'aws.events',
         'type': 'skillMessaging',
         'message': {
-          'event': 'getProactiveEvents',
-          'interval': config.SCHEDULE_RATE
+          'event': 'getProactiveEvents'
         },
         'userId': userId
       })
