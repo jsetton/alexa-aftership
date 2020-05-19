@@ -1,6 +1,6 @@
 {
   "name": "alexa-aftership",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "AfterShip Shipment Tracking for Alexa",
   "main": "index.js",
   "repository": {

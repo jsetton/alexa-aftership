@@ -175,7 +175,7 @@ class AftershipClient {
           date: 'delivery_date', location: 'delivery_location',
           lastUpdated: 'last_updated', tagEventNumber: 'tag_event_number',
         };
-        // Find package part of multi-package
+        // Determine if package part of multi-package
         const multiPkg = response.find((item) => Object.entries(keymap).every(([key, attr]) => {
           if (key === 'lastUpdated' || key === 'tagEventNumber') {
             return true;
@@ -185,7 +185,7 @@ class AftershipClient {
           } else if (typeof item[key] !== typeof pkg[attr]) {
             return false;
           } else if (item[key] instanceof moment) {
-            return item[key].diff(pkg[attr], 'days') === 0;
+            return item[key].diff(pkg[attr], 'hours') === 0;
           } else {
             return item[key] === pkg[attr];
           }
