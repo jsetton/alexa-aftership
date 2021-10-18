@@ -262,8 +262,7 @@ const LogResponseInterceptor = {
 };
 
 const persistenceAdapter = new DynamoDbPersistenceAdapter({
-  tableName: 'AlexaAfterShipSkillSettings',
-  createTable: true,
+  tableName: config.AWS_TABLE_NAME,
   partitionKeyName: 'userId'
 });
 
@@ -298,7 +297,7 @@ const skillHandler = Alexa.SkillBuilders.custom()
   .addErrorHandlers(ErrorHandler)
   .withApiClient(new Alexa.DefaultApiClient())
   .withPersistenceAdapter(persistenceAdapter)
-  .withSkillId(config.APP_ID)
+  .withSkillId(config.SKILL_ID)
   .lambda();
 
 exports.handler = (event, context, callback) =>

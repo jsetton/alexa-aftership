@@ -1,0 +1,39 @@
+{
+  "askcliResourcesVersion": "2020-03-31",
+  "profiles": {
+    "default": {
+      "skillMetadata": {
+        "src": "./skill-package"
+      },
+      "code": {
+        "default": {
+          "src": "./lambda"
+        }
+      },
+      "skillInfrastructure": {
+        "type": "@ask-cli/cfn-deployer",
+        "userConfig": {
+          "awsRegion": "us-east-1",
+          "runtime": "nodejs14.x",
+          "handler": "index.handler",
+          "templatePath": "./infrastructure/cfn-deployer/skill-stack.yml",
+          "skillEvents": {
+            "publications": [
+              "AMAZON.OrderStatus.Updated"
+            ],
+            "subscriptions": [
+              "SKILL_DISABLED",
+              "SKILL_PROACTIVE_SUBSCRIPTION_CHANGED"
+            ]
+          },
+          "cfn": {
+            "parameters": {
+              "AfterShipApiKey": "",
+              "GoogleMapsApiKey": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

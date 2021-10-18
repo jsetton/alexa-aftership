@@ -1,7 +1,0 @@
-{
-    "Runtime": "nodejs12.x",
-    "Handler": "index.handler",
-    "Description": "AfterShip Shipment Tracking for Alexa",
-    "Timeout": 10,
-    "MemorySize": 128
-}

@@ -10,7 +10,7 @@ Unofficial Alexa Skill for AfterShip Shipment Tracking Platform
 
 This skill provides package tracking information using the AfterShip shipment tracking platform API. The information provided is location-aware based on the Echo device configured location country and postal code. All of the location information is normalized via the Google Maps Geocoding API.
 
-It is leveraging the Alexa Skills Kit Command Line Interface (ASK CLI) to streamline the deployment process. This tool is still fairly new which hopefully will improve over time and reduce some of the manual configuration listed below.
+It is leveraging the Alexa Skills Kit Command Line Interface (ASK CLI) to streamline the deployment process.
 
 ## Prerequisites
 
@@ -20,19 +20,18 @@ In order to use the ASK CLI features to automatically deploy and manage your Lam
 
 Once you have installed [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html), you need to initialize it:
 
-```bash
-$ ask init
+You will need to install the custom [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html) from my repository until this [PR](https://github.com/alexa/ask-cli/pull/414) is merged, and then initialize it:
+
 ```
-
-For AWS resources deployment, you will need to install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html) and configure it:
-
-```bash
-$ aws configure
+$ npm install -g jsetton/ask-cli
+$ ask init
 ```
 
 ## Credentials
 
 ### AfterShip
+
+It is important to note that AfterShip has moved the tracking API functionality behind a paywall. That functionality requires at least the Essentials plan unless your existing account was migrated to the legacy Starter plan.
 
 To get tracking information, you need to generate a [AfterShip API Key](https://admin.aftership.com/settings/api-keys) associated to your account.
 
@@ -64,55 +63,51 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
 
 ## Deployment
 
-1. Deploy the skill and all AWS resources in one step:
+1. Configure the deployment parameters in [`ask-resources.json`](ask-resources.json):
+    * Required Parameters
+        | Parameter | Description |
+        |-----------|-------------|
+        | `AfterShipApiKey` | Your AfterShip API key. |
+        | `GoogleMapsApiKey` | Your Google Maps API key. |
 
+    * Optional Parameters
+        | Parameter | Description |
+        |-----------|-------------|
+        | `LambdaDebug` | Set to `true` to enable debug mode |
+        | `LocationDefaultCountry` | Set your country if not located in the *United States*. |
+        | `LocationDefaultTimezone` | Set your [time zone TZ name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) if not located in the *US/Eastern* time zone. |
+        | `AfterShipDaysPastDelivered` | Number of days since delivered packages are still included in results. (Default: 1) |
+        | `AfterShipDaysSearch` | Number of days since tracking created search query limit. AfterShip only stores data up to 90 days. (Default: 30) |
+        | `AfterShipNoteTagging` | Filter tracking items based on specific tag(s) part of the AfterShip note field. This can be a regexp. (Default: *disabled*) |
+        | `AfterShipTrackingCountLimit` | Maximum number of tracking items returned per query. (Default: 20) |
+        | `NotificationMuteFootnotes` | Mute skill location related error notifications at the end of the speech output. (Default: *disabled*) |
+        | `NotificationScheduleRate` | Proactive event notification check schedule rate in minutes. (Default: 30) |
+
+2. Deploy the skill and all AWS resources in one step:
     ```
-    $ ask deploy [--force] (Force deployment if necessary)
-    Profile for the deployment: [default]
-    -------------------- Create Skill Project --------------------
-    Skill Id: <skillId>
-    Skill metadata deploy finished.
-    Model deployment finished.
-    Lambda deployment finished.
-    Lambda function(s) created:
-      [Lambda ARN] <lambdaArn>
-    [Info]: No in-skill product to be deployed.
-    Your skill is now deployed and enabled in the development stage. Try simulate your Alexa skill using "ask dialog" command.
+    $ ask deploy
+    Deploy configuration loaded from ask-resources.json
+    Deploy project for profile [default]
+
+    ==================== Deploy Skill Metadata ====================
+    Skill package deployed successfully.
+    Skill ID: <skillId>
+
+    ==================== Build Skill Code ====================
+    Skill code built successfully.
+    Code for region default built to <skillPath>/.ask/lambda/build.zip successfully with build flow NodeJsNpmBuildFlow.
+
+    ==================== Deploy Skill Infrastructure ====================
+    ✔ Deploy Alexa skill infrastructure for region "default"
+    The api endpoints of skill.json have been updated from the skill infrastructure deploy results.
+    Skill infrastructures deployed successfully through @ask-cli/cfn-deployer.
+
+    ==================== Enable Skill ====================
+    Skill is enabled successfully.
     ```
 
-2. Get the skill client id and secret, using the skill id from previous step:
-
-    ```
-    $ ask api get-skill-credentials -s <skillId>
-    {
-      "skillMessagingCredentials": {
-        "clientId": <clientId>,
-        "clientSecret": <clientSecret>
-      }
-    }
-    ```
-
-3. Go to the [lambda function dashboard](https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions/alexa-aftership) and add the environment variables for the AfterShip & Google Maps API Keys and the Application Skill ID, Client ID & Secret listed in the previous steps, as shown in the screenshot below. **Make sure to click save at the top of the page to apply the settings.**
-
-    ![](screenshots/lambda_env_variables.png)
-
-4. If you aren't located in the *US/Eastern* time zone, you should also add your [time zone TZ name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) to the *DEFAULT_TIMEZONE* variable; same with *DEFAULT_COUNTRY* if not in the *United States*. Here is a list of the other configuration settings that can be set via an environment variable if need to be:
-
-    * *AFTERSHIP_DAYS_PAST_DELIVERED*<br>
-    Number of days since delivered packages are still included in results. (Default: 1)
-    * *AFTERSHIP_DAYS_SEARCH*<br>
-    Number of days since tracking created search query limit. AfterShip only stores data up to 90 days. (Default: 30)
-    * *AFTERSHIP_NOTE_TAGGING*<br>
-    Filter tracking items based on specific tag(s) part of the AfterShip note field. This can be a regexp. (Default: *disabled*)
-    * *AFTERSHIP_TRACKING_COUNT_LIMIT*<br>
-    Maximum number of tracking items returned per query. (Default: 20)
-    * *MUTE_FOOTNOTES*<br>
-    Mute skill location related error notifications at the end of the speech output. (Default: *disabled*)
-    * *SCHEDULE_RATE*<br>
-    Proactive event notification check schedule rate in minutes. (Default: 30)
-
-5. In your [Alexa Skill Console](https://alexa.amazon.com/spa/index.html#skills/your-skills), find the AfterShip skill under the "Dev Skills" tab and enable it. Make sure that the Device Country and Postal Code, and Alexa Notifications permissions are enabled as shown below.
+3. In your [Alexa Skill Console](https://alexa.amazon.com/spa/index.html#skills/your-skills), find the AfterShip skill under the "Dev Skills" tab and make sure that the Device Country and Postal Code, and Alexa Notifications permissions are enabled as shown below.
 
     ![](screenshots/alexa_skills_enable.png)
 
-6. That should be it! Now, just say to your favorite Echo device: "*Alexa, ask aftership where's my stuff*". If you have any errors, please check the [lambda function logs](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/aws/lambda/ask-custom-alexa-aftership-default). If necessary, you can enable the function debug mode, to increase the log verbosity, by setting the lambda function environment variable *DEBUG_MODE* to *on*.
+4. That should be it! Now, just say to your favorite Echo device: "*Alexa, ask aftership where's my stuff*". If you have any errors, please check the [lambda function logs](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/aws/lambda/ask-custom-alexa-aftership-default). If necessary, you can enable the function debug mode, to increase the log verbosity, by setting the `LambdaDebug` deployment parameter to `true`.
