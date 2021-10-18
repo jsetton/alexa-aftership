@@ -5,17 +5,21 @@ const { sayAsSpeechMarkup } = require('./utils.js');
 module.exports = Object.freeze({
   // Alexa
   API_ENDPOINT: process.env.ALEXA_API_ENDPOINT || 'https://api.amazonalexa.com',
-  APP_ID: process.env.ALEXA_APP_ID || '',
-  CLIENT_ID: process.env.ALEXA_CLIENT_ID || '',
-  CLIENT_SECRET: process.env.ALEXA_CLIENT_SECRET || '',
+  CLIENT_ID: process.env.SKILL_CLIENT_ID || '',
+  CLIENT_SECRET: process.env.SKILL_CLIENT_SECRET || '',
   CARD_SMALL_IMG_URL: 'https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-card-small.png',
   CARD_LARGE_IMG_URL: 'https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-card-large.png',
-  DEBUG_MODE: process.env.DEBUG_MODE || false,
+  DEBUG_MODE: process.env.DEBUG_MODE === 'true',
   DEFAULT_COUNTRY: process.env.DEFAULT_COUNTRY || 'United States',
   DEFAULT_TIMEZONE: process.env.DEFAULT_TIMEZONE || 'US/Eastern',
-  MUTE_FOOTNOTES: process.env.MUTE_FOOTNOTES || false,
+  MUTE_FOOTNOTES: process.env.MUTE_FOOTNOTES === 'true',
   PERMISSIONS: ['read::alexa:device:all:address:country_and_postal_code'],
   SCHEDULE_RATE: process.env.SCHEDULE_RATE || 30, // in minutes
+  SKILL_ID: process.env.SKILL_ID || '',
+
+  // AWS
+  AWS_SCHEDULE_NAME: process.env.SCHEDULE_NAME || 'AlexaAfterShipNotificationSchedule',
+  AWS_TABLE_NAME: process.env.TABLE_NAME || 'AlexaAfterShipSkillSettings',
 
   // Aftership
   AFTERSHIP_API_KEY: process.env.AFTERSHIP_API_KEY || '',

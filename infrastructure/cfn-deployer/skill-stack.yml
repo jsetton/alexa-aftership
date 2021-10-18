@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  AlexaApiUrl:
+    Default: https://api.amazonalexa.com
+    Type: String
+  AfterShipApiKey:
+    Type: String
+  AfterShipDaysPastDelivered:
+    Default: 1
+    Type: Number
+    MinValue: 0
+    MaxValue: 90
+  AfterShipDaysSearch:
+    Default: 30
+    Type: Number
+    MinValue: 1
+    MaxValue: 90
+  AfterShipNoteTagging:
+    Default: ""
+    Type: String
+  AfterShipTrackingCountLimit:
+    Default: 20
+    Type: Number
+    MinValue: 1
+    MaxValue: 100
+  GoogleMapsApiKey:
+    Type: String
+  LocationDefaultCountry:
+    Default: United States
+    Type: String
+  LocationDefaultTimezone:
+    Default: US/Eastern
+    Type: String
+  NotificationMuteFootnotes:
+    Default: false
+    Type: String
+    AllowedValues: [true, false]
+  NotificationScheduleRate:
+    Default: 30
+    Type: Number
+    MinValue: 15
+    MaxValue: 360
+  SkillId:
+    Type: String
+  SkillClientId:
+    Type: String
+  SkillClientSecret:
+    Type: String
+  DatabaseTableName:
+    Default: AlexaAfterShipSkillSettings
+    Type: String
+  EventScheduleName:
+    Default: AlexaAfterShipNotificationSchedule
+    Type: String
+  LambdaFunctionName:
+    Default: alexa-aftership
+    Type: String
+  LambdaRuntime:
+    Type: String
+  LambdaHandler:
+    Type: String
+  LambdaDebug:
+    Default: false
+    Type: String
+    AllowedValues: [true, false]
+  CodeBucket:
+    Type: String
+  CodeKey:
+    Type: String
+  CodeVersion:
+    Type: String
+Resources:
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TableName: !Ref DatabaseTableName
+  AlexaSkillIAMRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: /
+        Policies:
+          - PolicyName: AlexaAfterShipPolicy
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaFunctionName}:*
+                - Effect: Allow
+                  Action:
+                    - dynamodb:DeleteItem
+                    - dynamodb:GetItem
+                    - dynamodb:PutItem
+                  Resource: !Sub ${DynamoDBTable.Arn}*
+                - Effect: Allow
+                  Action:
+                    - events:DeleteRule
+                    - events:PutRule
+                    - events:PutTargets
+                    - events:RemoveTargets
+                  Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${EventScheduleName}
+                - Effect: Allow
+                  Action:
+                    - lambda:AddPermission
+                    - lambda:RemovePermission
+                  Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaFunctionName}
+  AlexaSkillFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+        S3ObjectVersion: !Ref CodeVersion
+      FunctionName: !Ref LambdaFunctionName
+      Description: AfterShip Shipment Tracking for Alexa
+      Handler: !Ref LambdaHandler
+      Runtime: !Ref LambdaRuntime
+      Role: !GetAtt AlexaSkillIAMRole.Arn
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          AFTERSHIP_API_KEY: !Ref AfterShipApiKey
+          AFTERSHIP_DAYS_PAST_DELIVERED: !Ref AfterShipDaysPastDelivered
+          AFTERSHIP_DAYS_SEARCH: !Ref AfterShipDaysSearch
+          AFTERSHIP_NOTE_TAGGING: !Ref AfterShipNoteTagging
+          AFTERSHIP_TRACKING_COUNT_LIMIT: !Ref AfterShipTrackingCountLimit
+          ALEXA_API_URL: !Ref AlexaApiUrl
+          DEBUG_MODE: !Ref LambdaDebug
+          DEFAULT_COUNTRY: !Ref LocationDefaultCountry
+          DEFAULT_TIMEZONE: !Ref LocationDefaultTimezone
+          GOOGLE_MAPS_API_KEY: !Ref GoogleMapsApiKey
+          MUTE_FOOTNOTES: !Ref NotificationMuteFootnotes
+          SCHEDULE_NAME: !Ref EventScheduleName
+          SCHEDULE_RATE: !Ref NotificationScheduleRate
+          SKILL_ID: !Ref SkillId
+          SKILL_CLIENT_ID: !Ref SkillClientId
+          SKILL_CLIENT_SECRET: !Ref SkillClientSecret
+          TABLE_NAME: !Ref DatabaseTableName
+  AlexaSkillFunctionEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt AlexaSkillFunction.Arn
+      Principal: alexa-appkit.amazon.com
+      EventSourceToken: !Ref SkillId
+  AlexaSkillFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AlexaSkillFunction}
+      RetentionInDays: 30
+Outputs:
+  SkillEndpoint:
+    Description: LambdaARN for the regional endpoint
+    Value: !GetAtt AlexaSkillFunction.Arn

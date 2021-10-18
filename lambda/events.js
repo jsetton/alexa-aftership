@@ -9,9 +9,9 @@ const cwevents = new AWS.CloudWatchEvents();
 // Create Lambda service object
 const lambda = new AWS.Lambda();
 // Define event rule schedule name
-const ruleName = 'AlexaAfterShipNotificationSchedule';
+const ruleName = config.AWS_SCHEDULE_NAME;
 // Define event rule target id
-const targetId = 'AlexaAfterShipNotificationTarget';
+const targetId = `${ruleName}Target`;
 
 /**
  * Create event rule schedule

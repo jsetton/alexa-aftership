@@ -2,7 +2,6 @@
   "interactionModel": {
     "languageModel": {
       "invocationName": "after ship",
-      "types": [],
       "intents": [
         {
           "name": "TrackingSearchIntent",
@@ -31,7 +30,8 @@
         {
           "name": "AMAZON.CancelIntent"
         }
-      ]
+      ],
+      "types": []
     }
   }
 }
