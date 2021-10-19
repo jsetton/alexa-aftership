@@ -20,11 +20,11 @@ In order to use the ASK CLI features to automatically deploy and manage your Lam
 
 Once you have installed [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html), you need to initialize it:
 
-You will need to install the custom [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html) from my repository until this [PR](https://github.com/alexa/ask-cli/pull/414) is merged, and then initialize it:
+You will need to install the custom [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html) from my repository until PRs [[1]](https://github.com/alexa/ask-cli/pull/410) [[2]](https://github.com/alexa/ask-cli/pull/414) are merged, and then configure it:
 
 ```
 $ npm install -g jsetton/ask-cli
-$ ask init
+$ ask configure
 ```
 
 ## Credentials
