@@ -1,5 +1,6 @@
 'use strict';
 
+const { AfterShip } = require('aftership');
 const config = require('./config.js');
 const device = require('./device.js');
 const location = require('./location.js');
@@ -35,7 +36,7 @@ class AftershipClient {
    */
   constructor() {
     // Initialize AfterShip API
-    this.api = require('aftership')(config.AFTERSHIP_API_KEY);
+    this.api = new AfterShip(config.AFTERSHIP_API_KEY);
   }
 
   /**
@@ -44,8 +45,8 @@ class AftershipClient {
    */
   async getCourierNames() {
     try {
-      const { data } = await this.api.call('GET', '/couriers/all');
-      return data.couriers.reduce(
+      const { couriers } = await this.api.courier.listAllCouriers();
+      return couriers.reduce(
         (list, courier) => Object.assign(list, {[courier.slug]: courier.name}), {});
     } catch (error) {
       console.error('Failed to get couriers data:', JSON.stringify(error));
@@ -76,7 +77,7 @@ class AftershipClient {
     // Set query object
     this.query = {
       string: keyword,
-      options: Object.assign({
+      parameters: Object.assign({
         created_at_min: moment().subtract(config.AFTERSHIP_DAYS_SEARCH, 'days').format(),
         fields: 'tracking_number,title,slug,tag,last_updated_at,expected_delivery,note,checkpoints'
         // tag: 'InfoReceived,InTransit,AvailableForPickup,OutForDelivery,AttemptFail,Delivered',
@@ -84,13 +85,13 @@ class AftershipClient {
         slug: slugs.join(',')
       } : tag in trackingStatus ? {
         tag: tag
-      } : {
+      } : keyword ? {
         keyword: keyword
-      })
+      } : {})
     };
 
     if (config.DEBUG_MODE)
-      console.log('Aftership trackings query:', JSON.stringify(this.query.options));
+      console.log('Aftership trackings query:', JSON.stringify(this.query.parameters));
 
     return this.query;
   }
@@ -107,13 +108,11 @@ class AftershipClient {
       // Generate AfterShip trackings query
       const query = this.getTrackingsQuery(keyword, couriers);
       // Get AfterShip trackings list
-      const { data } = await this.api.call('GET', '/trackings', {
-        query: query.options
-      });
+      const { trackings } = await this.api.tracking.listTrackings(query.parameters);
       const regexp = new RegExp(config.AFTERSHIP_NOTE_TAGGING);
       const response = [];
 
-      data.trackings.forEach((pkg) => {
+      trackings.forEach((pkg) => {
         // Ignore tracking for note not matching tagging regexp if specified
         if (config.AFTERSHIP_NOTE_TAGGING && (!pkg.note || !pkg.note.match(regexp))) {
           return;
@@ -351,8 +350,8 @@ class AftershipClient {
         Object.keys(summary).reduce((result, status, idx, obj) => result.concat(
           idx > 0 ? idx !== obj.length - 1 ? ', ' : ', and ' : '',
           summary[status], summary[status] > 1 ? ' packages ' : ' package ', trackingStatus[status]
-        ), '') || (query.options.tag ? `no package ${trackingStatus[query.options.tag]}` : 'no package'),
-        query.options.keyword || query.options.slug ? ` from ${query.string}` : '',
+        ), '') || (query.parameters.tag ? `no package ${trackingStatus[query.parameters.tag]}` : 'no package'),
+        query.parameters.keyword || query.parameters.slug ? ` from ${query.string}` : '',
         Object.keys(summary).length > 0 ? ':' : '.'
       ),
       details: trackings.map(pkg => `${pkg.message.join(' ')}.`)
