@@ -1,13 +1,18 @@
 'use strict';
 
-const AWS = require('aws-sdk');
+const {
+  EventBridgeClient,
+  PutRuleCommand,
+  DeleteRuleCommand,
+  PutTargetsCommand,
+  RemoveTargetsCommand
+} = require('@aws-sdk/client-eventbridge');
+const { LambdaClient, AddPermissionCommand, RemovePermissionCommand } = require("@aws-sdk/client-lambda");
 const config = require('./config.js');
-// Set region to lambda function one (default: us-east-1)
-AWS.config.update({region: process.env.AWS_REGION || 'us-east-1'});
-// Create CloudWatchEvents service object
-const cwevents = new AWS.CloudWatchEvents();
-// Create Lambda service object
-const lambda = new AWS.Lambda();
+// Create Event Bridge client
+const eventBridgeClient = new EventBridgeClient({ region: process.env.AWS_REGION || 'us-east-1' });
+// Create Lambda client
+const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
 // Define event rule schedule name
 const ruleName = config.AWS_SCHEDULE_NAME;
 // Define event rule target id
@@ -18,12 +23,12 @@ const targetId = `${ruleName}Target`;
  * @return {Promise}
  */
 function createRule() {
-  const params = {
+  const command = new PutRuleCommand({
     Name: ruleName,
     ScheduleExpression: `rate(${config.SCHEDULE_RATE} minutes)`,
     State: 'ENABLED'
-  };
-  return cwevents.putRule(params).promise();
+  });
+  return eventBridgeClient.send(command);
 }
 
 /**
@@ -33,22 +38,22 @@ function createRule() {
  * @return {Promise}
  */
 function createTarget(functionArn, userId) {
-  const params = {
+  const command = new PutTargetsCommand({
     Rule: ruleName,
     Targets: [{
       Id: targetId,
       Arn: functionArn,
       Input: JSON.stringify({
-        'source': 'aws.events',
-        'type': 'skillMessaging',
-        'message': {
-          'event': 'getProactiveEvents'
+        source: 'aws.events',
+        type: 'skillMessaging',
+        message: {
+          event: 'getProactiveEvents'
         },
-        'userId': userId
+        userId: userId
       })
     }]
-  };
-  return cwevents.putTargets(params).promise();
+  });
+  return eventBridgeClient.send(command);
 }
 
 /**
@@ -56,10 +61,10 @@ function createTarget(functionArn, userId) {
  * @return {Promise}
  */
 function deleteRule() {
-  const params = {
+  const command = new DeleteRuleCommand({
     Name: ruleName
-  };
-  return cwevents.deleteRule(params).promise();
+  });
+  return eventBridgeClient.send(command);
 }
 
 /**
@@ -67,11 +72,11 @@ function deleteRule() {
  * @return {Promise}
  */
 function deleteTarget() {
-  const params = {
+  const command = new RemoveTargetsCommand({
     Rule: ruleName,
     Ids: [targetId]
-  };
-  return cwevents.removeTargets(params).promise();
+  });
+  return eventBridgeClient.send(command);
 }
 
 /**
@@ -80,14 +85,14 @@ function deleteTarget() {
  * @return {Promise}
  */
 function addPermission(ruleArn) {
-  const params = {
+  const command = new AddPermissionCommand({
     Action: 'lambda:InvokeFunction',
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     Principal: 'events.amazonaws.com',
     StatementId: ruleName,
     SourceArn: ruleArn
-  };
-  return lambda.addPermission(params).promise();
+  });
+  return lambdaClient.send(command);
 }
 
 /**
@@ -95,11 +100,11 @@ function addPermission(ruleArn) {
  * @return {Promise}
  */
 function removePermission() {
-  const params = {
+  const command = new RemovePermissionCommand({
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     StatementId: ruleName
-  };
-  return lambda.removePermission(params).promise();
+  });
+  return lambdaClient.send(command);
 }
 
 /**

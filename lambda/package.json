@@ -1,6 +1,6 @@
 {
   "name": "alexa-aftership",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "AfterShip Shipment Tracking for Alexa",
   "main": "index.js",
   "repository": {
@@ -13,11 +13,12 @@
   "author": "Jeremy Setton",
   "license": "MIT",
   "dependencies": {
-    "aftership": "^7.0.3",
+    "@aws-sdk/client-eventbridge": "^3.105.0",
+    "@aws-sdk/client-lambda": "^3.105.0",
+    "aftership": "^7.0.4",
     "ask-sdk-core": "^2.12.1",
     "ask-sdk-dynamodb-persistence-adapter": "^2.12.1",
-    "ask-sdk-model": "^1.38.1",
-    "aws-sdk": "^2.1116.0",
+    "ask-sdk-model": "^1.38.2",
     "debug": "^4.3.4",
     "moment-timezone": "^0.5.34",
     "request": "^2.88.2",
