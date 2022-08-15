@@ -18,12 +18,10 @@ You need an [AWS account](https://aws.amazon.com) and an [Amazon developer accou
 
 In order to use the ASK CLI features to automatically deploy and manage your Lambda skill, ensure that you have AWS credentials set up with the appropriate permissions on the computer to which you are installing ASK CLI, as described in [Set Up Credentials for an Amazon Web Services (AWS) Account](https://developer.amazon.com/docs/smapi/set-up-credentials-for-an-amazon-web-services-account.html).
 
-Once you have installed [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html), you need to initialize it:
-
-You will need to install the custom [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html) from my repository until PRs [[1]](https://github.com/alexa/ask-cli/pull/410) [[2]](https://github.com/alexa/ask-cli/pull/414) are merged, and then configure it:
+You will have to install the latest [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html), and then configure it:
 
 ```
-$ npm install -g jsetton/ask-cli
+$ npm install -g ask-cli
 $ ask configure
 ```
 
