@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * List of supported say as interpret names
  * @type {Array}
@@ -19,7 +17,7 @@ const supportedSayAs = [
  * @param  {String} text
  * @return {String}
  */
-function decodeSpeechMarkup(text) {
+const decodeSpeechMarkup = (text) => {
   return text
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -33,7 +31,7 @@ function decodeSpeechMarkup(text) {
  * @param  {String} text
  * @return {String}
  */
-function encodeSpeechMarkup(text) {
+const encodeSpeechMarkup = (text) => {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -47,7 +45,7 @@ function encodeSpeechMarkup(text) {
  * @param  {String} text
  * @return {String}
  */
-function formatSpeechMarkup(text) {
+export const formatSpeechMarkup = (text) => {
   return encodeSpeechMarkup(text)
     .replace(
       /\b(\d+)\b/g,
@@ -67,8 +65,8 @@ function formatSpeechMarkup(text) {
  * @param  {String} interpretAs
  * @return {String}
  */
-function sayAsSpeechMarkup(text, interpretAs) {
-  return supportedSayAs.indexOf(interpretAs) > -1 ? `<say-as interpret-as="${interpretAs}">${text}</say-as>` : text;
+export const sayAsSpeechMarkup = (text, interpretAs) => {
+  return supportedSayAs.includes(interpretAs) ? `<say-as interpret-as="${interpretAs}">${text}</say-as>` : text;
 };
 
 /**
@@ -76,12 +74,6 @@ function sayAsSpeechMarkup(text, interpretAs) {
  * @param  {String} text
  * @return {String}
  */
-function stripSpeechMarkup(text) {
+export const stripSpeechMarkup = (text) => {
   return decodeSpeechMarkup(text.replace(/<[^>]+>/g, ''));
-};
-
-module.exports = {
-  formatSpeechMarkup,
-  sayAsSpeechMarkup,
-  stripSpeechMarkup
 };

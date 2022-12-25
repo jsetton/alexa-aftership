@@ -1,110 +1,63 @@
-'use strict';
+import { Client } from '@googlemaps/google-maps-services-js';
+import moment from './moment.js';
 
-const request = require('request-promise-native');
-const config = require('./config.js');
-const moment = require('./moment.js');
-
-/**
- * Get Google Maps geocode data
- * @param  {String}  address
- * @return {Promise}
- */
-function getGoogleMapsGeoCode(address) {
-  const options = {
-    method: 'GET',
-    uri: `${config.GOOGLE_MAPS_API_ENDPOINT}/geocode/json`,
-    qs: {
-      address: address.replace(/\s+/g, '+'),
-      key: config.GOOGLE_MAPS_API_KEY
-    },
-    json: true
-  };
-
-  if (config.DEBUG_MODE)
-    console.log('Google Maps geocode query:', JSON.stringify(options));
-
-  return request(options);
-};
+const client = new Client();
 
 /**
  * Get formatted geolocation information from Google Maps geocode data
  * @param  {String}  address
  * @param  {Boolean} ignoreError
- * @return {Object}
+ * @return {Promise}
  */
-async function getGeoLocation(address, ignoreError) {
+export const getGeoLocation = async (address, ignoreError = false) => {
   try {
-    const { results } = await getGoogleMapsGeoCode(address);
-    const result = {};
+    const { data } = await client.geocode({
+      params: { address, key: process.env.GOOGLE_MAPS_API_KEY }
+    });
+    const location = {};
 
-    if (Array.isArray(results) && results.length > 0) {
-      results[0].address_components.forEach((component) => {
-        if (component.types.indexOf('postal_code') > -1) {
-          result.zipcode = component.long_name;
-        } else if (component.types.indexOf('locality') > -1) {
-          result.city = component.long_name;
-        } else if (component.types.indexOf('sublocality') > -1) {
-          result.city = result.city || component.long_name;
-        } else if (component.types.indexOf('administrative_area_level_1') > -1) {
-          result.state = component.long_name;
-        } else if (component.types.indexOf('country') > -1) {
-          result.country = component.long_name;
+    if (Array.isArray(data.results) && data.results.length > 0) {
+      data.results[0].address_components.forEach((component) => {
+        if (component.types.includes('postal_code')) {
+          location.zipcode = component.long_name;
+        } else if (component.types.includes('locality')) {
+          location.city = component.long_name;
+        } else if (component.types.includes('sublocality')) {
+          location.city = result.city || component.long_name;
+        } else if (component.types.includes('administrative_area_level_1')) {
+          location.state = component.long_name;
+        } else if (component.types.includes('country')) {
+          location.country = component.long_name;
         }
       });
 
-      result.lat = results[0].geometry.location.lat;
-      result.lng = results[0].geometry.location.lng;
+      location.lat = data.results[0].geometry.location.lat;
+      location.lng = data.results[0].geometry.location.lng;
     }
 
-    return result;
+    return location;
   } catch (error) {
-    console.error('Failed to get geocode data', JSON.stringify(error));
+    console.error('Failed to get geocode data', error);
     if (!ignoreError)
       throw error;
   }
-};
-
-/**
- * Get Google Maps timezone data
- * @param  {String}  location
- * @return {Promise}
- */
-function getGoogleMapsTimezone(location) {
-  const options = {
-    method: 'GET',
-    uri: `${config.GOOGLE_MAPS_API_ENDPOINT}/timezone/json`,
-    qs: {
-      location: location,
-      timestamp: moment().unix(),
-      key: config.GOOGLE_MAPS_API_KEY
-    },
-    json: true
-  };
-
-  if (config.DEBUG_MODE)
-    console.log('Google Maps timezone query:', JSON.stringify(options));
-
-  return request(options);
 };
 
 /**
  * Get timeZoneId from Google Maps timezone data
  * @param  {String}  location
  * @param  {Boolean} ignoreError
- * @return {String}
+ * @return {Promise}
  */
-async function getTimezoneId(location, ignoreError) {
+export const getTimezoneId = async (location, ignoreError = false) => {
   try {
-    const timezone = await getGoogleMapsTimezone(location);
-    return timezone.timeZoneId;
+    const { data } = await client.timezone({
+      params: { location, timestamp: moment().unix(), key: process.env.GOOGLE_MAPS_API_KEY }
+    });
+    return data.timeZoneId;
   } catch (error) {
-    console.error('Failed to get timezone data', JSON.stringify(error));
+    console.error('Failed to get timezone data', error);
     if (!ignoreError)
       throw error;
   }
-};
-
-module.exports = {
-  getGeoLocation,
-  getTimezoneId
 };

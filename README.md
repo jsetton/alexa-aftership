@@ -104,8 +104,6 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
     Skill is enabled successfully.
     ```
 
-3. In your [Alexa Skill Console](https://alexa.amazon.com/spa/index.html#skills/your-skills), find the AfterShip skill under the "Dev Skills" tab and make sure that the Device Country and Postal Code, and Alexa Notifications permissions are enabled as shown below.
-
-    ![](screenshots/alexa_skills_enable.png)
+3. In your Alexa app, go to More > Skills & Games, find the AfterShip List Sync skill under Your Skills > Dev tab and enable it. Make sure that the "Device Country and Postal Code", and "Alexa Notifications" permissions are granted.
 
 4. That should be it! Now, just say to your favorite Echo device: "*Alexa, ask aftership where's my stuff*". If you have any errors, please check the [lambda function logs](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logStream:group=/aws/lambda/ask-custom-alexa-aftership-default). If necessary, you can enable the function debug mode, to increase the log verbosity, by setting the `LambdaDebug` deployment parameter to `true`.

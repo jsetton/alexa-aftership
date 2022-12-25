@@ -1,8 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
-  AlexaApiUrl:
-    Default: https://api.amazonalexa.com
-    Type: String
   AfterShipApiKey:
     Type: String
   AfterShipDaysPastDelivered:
@@ -23,6 +20,15 @@ Parameters:
     Type: Number
     MinValue: 1
     MaxValue: 100
+  AlexaApiUrl:
+    Default: https://api.amazonalexa.com
+    Type: String
+  AlexaCardLargeImgUrl:
+    Default: https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-card-large.png
+    Type: String
+  AlexaCardSmallImgUrl:
+    Default: https://raw.githubusercontent.com/jsetton/alexa-aftership/master/resources/icons/aftership-card-small.png
+    Type: String
   GoogleMapsApiKey:
     Type: String
   LocationDefaultCountry:
@@ -30,6 +36,9 @@ Parameters:
     Type: String
   LocationDefaultTimezone:
     Default: US/Eastern
+    Type: String
+  LwaApiUrl:
+    Default: https://api.amazon.com
     Type: String
   NotificationMuteFootnotes:
     Default: false
@@ -136,7 +145,7 @@ Resources:
       Handler: !Ref LambdaHandler
       Runtime: !Ref LambdaRuntime
       Role: !GetAtt AlexaSkillIAMRole.Arn
-      MemorySize: 128
+      MemorySize: 256
       Timeout: 10
       Environment:
         Variables:
@@ -146,10 +155,13 @@ Resources:
           AFTERSHIP_NOTE_TAGGING: !Ref AfterShipNoteTagging
           AFTERSHIP_TRACKING_COUNT_LIMIT: !Ref AfterShipTrackingCountLimit
           ALEXA_API_URL: !Ref AlexaApiUrl
+          CARD_LARGE_IMG_URL: !Ref AlexaCardLargeImgUrl
+          CARD_SMALL_IMG_URL: !Ref AlexaCardSmallImgUrl
           DEBUG_MODE: !Ref LambdaDebug
           DEFAULT_COUNTRY: !Ref LocationDefaultCountry
           DEFAULT_TIMEZONE: !Ref LocationDefaultTimezone
           GOOGLE_MAPS_API_KEY: !Ref GoogleMapsApiKey
+          LWA_API_URL: !Ref LwaApiUrl
           MUTE_FOOTNOTES: !Ref NotificationMuteFootnotes
           SCHEDULE_NAME: !Ref EventScheduleName
           SCHEDULE_RATE: !Ref NotificationScheduleRate

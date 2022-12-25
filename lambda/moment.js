@@ -1,6 +1,4 @@
-'use strict';
-
-const moment = require('moment-timezone');
+import moment from 'moment-timezone';
 
 moment.updateLocale('en', {
   calendar: {
@@ -38,4 +36,4 @@ moment.prototype.setTimezone = function(timezone) {
   }
 };
 
-module.exports = moment;
+export default moment;

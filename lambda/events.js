@@ -1,20 +1,18 @@
-'use strict';
-
-const {
+import {
   EventBridgeClient,
   PutRuleCommand,
   DeleteRuleCommand,
   PutTargetsCommand,
   RemoveTargetsCommand
-} = require('@aws-sdk/client-eventbridge');
-const { LambdaClient, AddPermissionCommand, RemovePermissionCommand } = require("@aws-sdk/client-lambda");
-const config = require('./config.js');
+} from '@aws-sdk/client-eventbridge';
+import { LambdaClient, AddPermissionCommand, RemovePermissionCommand } from '@aws-sdk/client-lambda';
+
 // Create Event Bridge client
 const eventBridgeClient = new EventBridgeClient({ region: process.env.AWS_REGION || 'us-east-1' });
 // Create Lambda client
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
 // Define event rule schedule name
-const ruleName = config.AWS_SCHEDULE_NAME;
+const ruleName = process.env.SCHEDULE_NAME;
 // Define event rule target id
 const targetId = `${ruleName}Target`;
 
@@ -22,14 +20,14 @@ const targetId = `${ruleName}Target`;
  * Create event rule schedule
  * @return {Promise}
  */
-function createRule() {
+const createRule = () => {
   const command = new PutRuleCommand({
     Name: ruleName,
-    ScheduleExpression: `rate(${config.SCHEDULE_RATE} minutes)`,
+    ScheduleExpression: `rate(${process.env.SCHEDULE_RATE} minutes)`,
     State: 'ENABLED'
   });
   return eventBridgeClient.send(command);
-}
+};
 
 /**
  * Create event rule target
@@ -37,7 +35,7 @@ function createRule() {
  * @param  {String} userId
  * @return {Promise}
  */
-function createTarget(functionArn, userId) {
+const createTarget = (functionArn, userId) => {
   const command = new PutTargetsCommand({
     Rule: ruleName,
     Targets: [{
@@ -54,37 +52,37 @@ function createTarget(functionArn, userId) {
     }]
   });
   return eventBridgeClient.send(command);
-}
+};
 
 /**
  * Delete event rule schedule
  * @return {Promise}
  */
-function deleteRule() {
+const deleteRule = () => {
   const command = new DeleteRuleCommand({
     Name: ruleName
   });
   return eventBridgeClient.send(command);
-}
+};
 
 /**
  * Delete event rule target
  * @return {Promise}
  */
-function deleteTarget() {
+const deleteTarget = () => {
   const command = new RemoveTargetsCommand({
     Rule: ruleName,
     Ids: [targetId]
   });
   return eventBridgeClient.send(command);
-}
+};
 
 /**
  * Add event rule lambda permission
  * @param  {String} ruleArn
  * @return {Promise}
  */
-function addPermission(ruleArn) {
+const addPermission = (ruleArn) => {
   const command = new AddPermissionCommand({
     Action: 'lambda:InvokeFunction',
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
@@ -93,19 +91,19 @@ function addPermission(ruleArn) {
     SourceArn: ruleArn
   });
   return lambdaClient.send(command);
-}
+};
 
 /**
  * Remote event rule lambda permission
  * @return {Promise}
  */
-function removePermission() {
+const removePermission = () => {
   const command = new RemovePermissionCommand({
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     StatementId: ruleName
   });
   return lambdaClient.send(command);
-}
+};
 
 /**
  * Create event schedule
@@ -113,27 +111,22 @@ function removePermission() {
  * @param  {String} userId
  * @return {Promise}
  */
-async function createSchedule(functionArn, userId) {
+export const createEventSchedule = async (functionArn, userId) => {
   const response = await createRule();
   await Promise.all([
     addPermission(response.RuleArn),
     createTarget(functionArn, userId)
   ]);
-}
+};
 
 /**
  * Delete event schedule
  * @return {Promise}
  */
-async function deleteSchedule() {
+export const deleteEventSchedule = async () => {
   await Promise.all([
     deleteTarget(),
     removePermission()
   ]);
   await deleteRule();
-}
-
-module.exports = {
-  createSchedule,
-  deleteSchedule
 };
