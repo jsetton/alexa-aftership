@@ -1,117 +1,58 @@
-'use strict';
-
-const request = require('request-promise-native');
+import got from 'got';
 
 /**
- * Defines Alexa Skill API class
+ * Returns access token for a given scope
+ * @param  {String}  scope
+ * @return {Promise}
  */
-class AlexaSkillApi {
-  /**
-   * Constructor
-   * @param {String} clientId
-   * @param {String} clientSecret
-   * @param {String} scope
-   */
-  constructor(clientId, clientSecret, scope = '') {
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
-    this.scope = scope;
-  }
-
-  /**
-   * Returns proactive events access token
-   * @return {Promise}
-   */
-  getAccessToken() {
-    const options = {
-      method: 'POST',
-      uri: 'https://api.amazon.com/auth/o2/token',
-      json: {
-        grant_type: 'client_credentials',
-        scope: this.scope,
-        client_id: this.clientId,
-        client_secret: this.clientSecret
-      }
-    };
-    return request(options)
-      .then(({ access_token }) => this.accessToken = access_token);
-  }
-}
-
-/**
- * Defines Alexa Proactive Events API class
- * @extends AlexaSkillApi
- */
-class ProactiveEventsApi extends AlexaSkillApi {
-  /**
-   * Constructor
-   * @param {String} apiUrl
-   * @param {String} clientId
-   * @param {String} clientSecret
-   */
-  constructor(apiUrl, clientId, clientSecret) {
-    super(clientId, clientSecret, 'alexa::proactive_events');
-    this.apiUrl = apiUrl;
-  }
-
-  /**
-   * Create proactive event
-   * @param  {Object}  parameters
-   * @return {Promise}
-   */
-  async createProactiveEvent(parameters = {}) {
-    const options = {
-      method: 'POST',
-      uri: `${this.apiUrl}/v1/proactiveEvents/stages/development`,
-      auth: {
-        bearer: this.accessToken || await this.getAccessToken()
-      },
-      json: parameters
-    };
-    return request(options);
-  }
-}
-
-/**
- * Defines Alexa Skill Messaging API class
- * @extends AlexaSkillApi
- */
-class SkillMessagingApi extends AlexaSkillApi {
-  /**
-   * Constructor
-   * @param {String} apiUrl
-   * @param {String} clientId
-   * @param {String} clientSecret
-   * @param {String} userId
-   */
-  constructor(apiUrl, clientId, clientSecret, userId) {
-    super(clientId, clientSecret, 'alexa:skill_messaging');
-    this.apiUrl = apiUrl;
-    this.userId = userId;
-  }
-
-  /**
-   * Send message
-   * @param  {Object}  data
-   * @return {Promise}
-   */
-  async sendMessage(data = {}) {
-    const options = {
-      method: 'POST',
-      uri: `${this.apiUrl}/v1/skillmessages/users/${this.userId}`,
-      auth: {
-        bearer: this.accessToken || await this.getAccessToken()
-      },
-      json: {
-        data: data,
-        expiresAfterSeconds: 60
-      }
-    };
-    return request(options);
-  }
-}
-
-module.exports = {
-  ProactiveEventsApi,
-  SkillMessagingApi
+const getAccessToken = (scope) => {
+  const options = {
+    method: 'POST',
+    url: `${process.env.LWA_API_URL}/auth/o2/token`,
+    json: {
+      grant_type: 'client_credentials',
+      scope,
+      client_id: process.env.SKILL_CLIENT_ID,
+      client_secret: process.env.SKILL_CLIENT_SECRET
+    }
+  };
+  return got(options).json().then((response) => response.access_token);
 };
+
+/**
+ * Create proactive event
+ * @param  {Object}  parameters
+ * @return {Promise}
+ */
+export const createProactiveEvent = async (parameters) => {
+  const options = {
+    method: 'POST',
+    url: `${process.env.ALEXA_API_URL}/v1/proactiveEvents/stages/development`,
+    headers: {
+      Authorization: `Bearer ${await getAccessToken('alexa::proactive_events')}`
+    },
+    json: parameters
+  };
+  return got(options);
+};
+
+/**
+ * Send skill message
+ * @param  {String}  userId
+ * @param  {Object}  data
+ * @return {Promise}
+ */
+export const sendSkillMessage = async (userId, data) => {
+  const options = {
+    method: 'POST',
+    url: `${process.env.ALEXA_API_URL}/v1/skillmessages/users/${userId}`,
+    headers: {
+      Authorization: `Bearer ${await getAccessToken('alexa:skill_messaging')}`
+    },
+    json: {
+      data,
+      expiresAfterSeconds: 60
+    }
+  };
+  return got(options);
+}

@@ -1,15 +1,29 @@
-'use strict';
+import Alexa from 'ask-sdk-core';
+import { DynamoDbPersistenceAdapter } from 'ask-sdk-dynamodb-persistence-adapter';
+import { getProactiveEvents, getSpeechOutput } from './aftership.js';
+import { createProactiveEvent, sendSkillMessage } from './api.js';
+import device from './device.js';
+import { createEventSchedule, deleteEventSchedule } from './events.js';
+import moment from './moment.js';
+import { sayAsSpeechMarkup, stripSpeechMarkup } from './utils.js';
 
-const Alexa = require('ask-sdk-core');
-const { DynamoDbPersistenceAdapter } = require('ask-sdk-dynamodb-persistence-adapter');
-const aftership = require('./aftership.js');
-const { ProactiveEventsApi, SkillMessagingApi } = require('./api.js');
-const config = require('./config.js');
-const device = require('./device.js');
-const events = require('./events.js');
-const moment = require('./moment.js');
-const { stripSpeechMarkup } = require('./utils.js');
+/**
+ * Defines speech messages
+ * @type {Object}
+ */
+const SPEECH_MESSAGE = {
+  Cancel: 'Cancelled',
+  Error: `${sayAsSpeechMarkup('Uh oh', 'interjection')}, something went wrong.`,
+  Help: "You can ask, track my shipments or where's my stuff? Now, what can I help you with?",
+  Stop: 'Goodbye!',
+  Unhandled: "Sorry, I didn't get that.",
+  Welcome: 'Welcome to Aftership.'
+};
 
+/**
+ * Defines skill event handler
+ * @type {Object}
+ */
 const SkillEventHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.SkillDisabled' ||
@@ -21,11 +35,11 @@ const SkillEventHandler = {
       const subscriptions = handlerInput.requestEnvelope.request.body.subscriptions || [];
       // Set up event schedule if subscriptions not empty, otherwise delete it
       if (subscriptions.length > 0) {
-        await events.createSchedule(
+        await createEventSchedule(
           handlerInput.context.invokedFunctionArn, Alexa.getUserId(handlerInput.requestEnvelope));
         console.info('Event schedule has been created.');
       } else {
-        await events.deleteSchedule();
+        await deleteEventSchedule();
         console.info('Event schedule has been deleted.');
       }
       // Delete persistent attributes if not persistent status set on skill disabled event
@@ -34,11 +48,15 @@ const SkillEventHandler = {
         console.info('User attributes have been deleted.');
       }
     } catch (error) {
-      console.error('Failed to handle skill event:', JSON.stringify(error));
+      console.error('Failed to handle skill event:', error);
     }
   }
 };
 
+/**
+ * Defines skill messaging handler
+ * @type {Object}
+ */
 const SkillMessagingHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'Messaging.MessageReceived'
@@ -47,57 +65,63 @@ const SkillMessagingHandler = {
     try {
       // Get latest user attributes from database
       const attributes = await handlerInput.attributesManager.getPersistentAttributes();
-      // Update device object based on user attribute
-      Object.assign(device, attributes.device);
+      // Update device attributes based on user attribute
+      device.updateAttributes(attributes.device);
       // Define current date based on device timezone
       const now = moment().tz(device.timezone);
       // Create proactive events if requested
       if (handlerInput.requestEnvelope.request.message.event === 'getProactiveEvents') {
         // Get trackings proactive events
-        const events = await aftership.getProactiveEvents(attributes.lastProactiveEvent);
+        const events = await getProactiveEvents(attributes.lastProactiveEvent);
         // Log proactive events if debug enabled
-        if (config.DEBUG_MODE) {
+        if (process.env.DEBUG_MODE === 'true') {
           console.log('Proactive events:', JSON.stringify(events));
         }
-        // Initialize proactive events api object
-        const api = new ProactiveEventsApi(config.API_ENDPOINT, config.CLIENT_ID, config.CLIENT_SECRET);
         // Define proactive events promises, appending relevant audience property to each event
-        const promises = events.map(event => api.createProactiveEvent(
-          Object.assign(event, {
-            relevantAudience: {
-              type: 'Unicast',
-              payload: {
-                user: Alexa.getUserId(handlerInput.requestEnvelope)
-              }
+        const promises = events.map(event => createProactiveEvent({
+          ...event,
+          relevantAudience: {
+          type: 'Unicast',
+            payload: {
+              user: Alexa.getUserId(handlerInput.requestEnvelope)
             }
-          })
-        ));
+          }
+        }));
         // Create all notifications
         await Promise.all(promises);
         // Store latest user attributes to database
-        handlerInput.attributesManager.setPersistentAttributes(Object.assign(attributes, {
+        handlerInput.attributesManager.setPersistentAttributes({
+          ...attributes,
           lastProactiveEvent: now.toISOString()
-        }));
+        });
         await handlerInput.attributesManager.savePersistentAttributes();
       }
     } catch (error) {
-      console.error('Failed to handle skill messaging event:', JSON.stringify(error));
+      console.error('Failed to handle skill messaging event:', error);
     }
   }
 };
 
+/**
+ * Defines launch request handler
+ * @type {Object}
+ */
 const LaunchRequestHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak(`${config.WELCOME_MESSAGE} ${config.HELP_MESSAGE}`)
-      .reprompt(config.HELP_MESSAGE)
+      .speak(`${SPEECH_MESSAGE.Welcome} ${SPEECH_MESSAGE.Help}`)
+      .reprompt(SPEECH_MESSAGE.Help)
       .getResponse();
   }
 };
 
+/**
+ * Defines tracking search intent handler
+ * @type {Object}
+ */
 const TrackingSearchIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
@@ -111,20 +135,20 @@ const TrackingSearchIntentHandler = {
     // Check if device permission consent token defined
     if (!consentToken) {
       return handlerInput.responseBuilder
-        .speak(config.DEVICE_PERM_NOT_GRANTED)
-        .withAskForPermissionsConsentCard(config.PERMISSIONS)
+        .speak("The device country and postal code permission haven't been granted. Please check the skill settings.")
+        .withAskForPermissionsConsentCard(['read::alexa:device:all:address:country_and_postal_code'])
         .getResponse();
     }
 
     // Check if Aftership API key configured
-    if (!config.AFTERSHIP_API_KEY) {
+    if (!process.env.AFTERSHIP_API_KEY) {
       return handlerInput.responseBuilder
-        .speak(config.AFTERSHIP_API_KEY_MISSING)
+        .speak('The Aftership API key is not configured. Please check the lambda function settings.')
         .getResponse();
     }
 
     // Warn if Google Maps API key not configured
-    if (!config.GOOGLE_MAPS_API_KEY) {
+    if (!process.env.GOOGLE_MAPS_API_KEY) {
       console.warn(
         'The Google Maps API key is not configured. It is strongly recommended to use one.',
         'Please refer to the skill installation instructions.'
@@ -141,20 +165,21 @@ const TrackingSearchIntentHandler = {
       // Get latest user attributes from database
       const attributes = await handlerInput.attributesManager.getPersistentAttributes();
       // Store latest user attributes to database
-      handlerInput.attributesManager.setPersistentAttributes(Object.assign(attributes, {
+      handlerInput.attributesManager.setPersistentAttributes({
+        ...attributes,
         device: device.getAttributes()
-      }));
+      });
       await handlerInput.attributesManager.savePersistentAttributes();
     } catch (error) {
       // Catch device location errors
       if (Object.keys(device.location).length > 0) {
         console.warn('Using previously gatherered device location information.');
       } else {
-        console.error('Unable to get device location information:', JSON.stringify(error));
+        console.error('Unable to get device location information:', error);
         console.warn('Timezone set to default value:', device.timezone);
         footnotes.push(
-          config.TIMESTAMP_DEFAULT_TIMEZONE.replace('{default_timezone}', device.timezone),
-          config.DEVICE_LOCATION_NOT_FOUND
+          `All timestamps are defaulted to ${device.timezone} timezone.`,
+          "The device location couldn't be determined. Please check the lambda function logs."
         );
       }
     }
@@ -164,26 +189,30 @@ const TrackingSearchIntentHandler = {
 
     try {
       // Get trackings speech output
-      const speech = await aftership.getSpeechOutput(
+      const speechOutput = await getSpeechOutput(
         Alexa.getSlotValue(handlerInput.requestEnvelope, 'query'),
-        !config.MUTE_FOOTNOTES ? footnotes : []
+        process.env.MUTE_FOOTNOTES === 'true' ? [] : footnotes
       );
       // Send trackings speech output results
       return handlerInput.responseBuilder
-        .speak(speech)
-        .withStandardCard('Tracking Information', stripSpeechMarkup(speech),
-          config.CARD_SMALL_IMG_URL, config.CARD_LARGE_IMG_URL)
+        .speak(speechOutput)
+        .withStandardCard('Tracking Information', stripSpeechMarkup(speechOutput),
+          process.env.CARD_SMALL_IMG_URL, process.env.CARD_LARGE_IMG_URL)
         .getResponse();
     } catch (error) {
       // Catch AfterShip tracking errors
-      console.error('Couln\'t get aftership trackings list:', JSON.stringify(error));
+      console.error("Couln't get aftership trackings list:", error);
       return handlerInput.responseBuilder
-        .speak(config.ERROR_MESSAGE)
+        .speak(SPEECH_MESSAGE.Error)
         .getResponse();
     }
   }
 };
 
+/**
+ * Defines help intent handler
+ * @type {Object}
+ */
 const HelpIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
@@ -191,12 +220,16 @@ const HelpIntentHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak(config.HELP_MESSAGE)
-      .reprompt(config.HELP_MESSAGE)
+      .speak(SPEECH_MESSAGE.Help)
+      .reprompt(SPEECH_MESSAGE.Help)
       .getResponse();
   }
 };
 
+/**
+ * Defines stop intent handler
+ * @type {Object}
+ */
 const StopIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
@@ -204,11 +237,15 @@ const StopIntentHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak(config.STOP_MESSAGE)
+      .speak(SPEECH_MESSAGE.Stop)
       .getResponse();
   }
 };
 
+/**
+ * Defines cancel intent handler
+ * @type {Object}
+ */
 const CancelIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
@@ -216,71 +253,98 @@ const CancelIntentHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak(config.CANCEL_MESSAGE)
+      .speak(SPEECH_MESSAGE.Cancel)
       .getResponse();
   }
 };
 
+/**
+ * Defines unhandled intent handler
+ * @type {Object}
+ */
 const UnhandledIntentHandler = {
   canHandle() {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest';
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak(`${config.UNHANDLED_MESSAGE} ${config.HELP_MESSAGE}`)
-      .reprompt(config.HELP_MESSAGE)
+      .speak(`${SPEECH_MESSAGE.Unhandled} ${SPEECH_MESSAGE.Help}`)
+      .reprompt(SPEECH_MESSAGE.Help)
       .getResponse();
   }
 };
 
+/**
+ * Defines error handler
+ * @type {Object}
+ */
 const ErrorHandler = {
   canHandle() {
     return true;
   },
   handle(handlerInput, error) {
-    console.error('Request error:', JSON.stringify(error));
+    console.error('Request error:', error);
     return handlerInput.responseBuilder
-      .speak(config.ERROR_MESSAGE)
+      .speak(SPEECH_MESSAGE.Error)
       .getResponse();
   }
 };
 
+/**
+ * Defines log request interceptor
+ * @type {Object}
+ */
 const LogRequestInterceptor = {
   process(handlerInput) {
-    if (config.DEBUG_MODE) {
+    if (process.env.DEBUG_MODE === 'true') {
       console.log('Request received:', JSON.stringify(handlerInput.requestEnvelope));
     }
   }
 };
 
+/**
+ * Defines log response interceptor
+ * @type {Object}
+ */
 const LogResponseInterceptor = {
   process(handlerInput, response) {
-    if (config.DEBUG_MODE && response) {
+    if (process.env.DEBUG_MODE === 'true' && response) {
       console.log('Response sent:', JSON.stringify(response));
     }
   }
 };
 
+/**
+ * Defines persistent adapter
+ * @type {DynamoDbPersistenceAdapter}
+ */
 const persistenceAdapter = new DynamoDbPersistenceAdapter({
-  tableName: config.AWS_TABLE_NAME,
+  tableName: process.env.TABLE_NAME,
   partitionKeyName: 'userId'
 });
 
+/**
+ * Handles scheduled event
+ * @param  {Object}  event
+ * @return {Promise}
+ */
 const scheduledEventHandler = async (event) => {
   try {
     console.log('Event received:', JSON.stringify(event));
     // Send skill message if relevant event type
     if (event.type === 'skillMessaging') {
-      const api = new SkillMessagingApi(
-        config.API_ENDPOINT, config.CLIENT_ID, config.CLIENT_SECRET, event.userId);
-      await api.sendMessage(event.message);
+      await sendSkillMessage(event.userId, event.message);
       console.log('Skill message sent:', JSON.stringify(event.message));
     }
   } catch (error) {
-    console.error(`Failed to handle scheduled event ${event.type}:`, JSON.stringify(error));
+    console.error(`Failed to handle scheduled event ${event.type}:`, error);
   }
 };
 
+/**
+ * Defines skill handler
+ * @type {Object}
+ */
 const skillHandler = Alexa.SkillBuilders.custom()
   .addRequestHandlers(
     SkillEventHandler,
@@ -297,8 +361,8 @@ const skillHandler = Alexa.SkillBuilders.custom()
   .addErrorHandlers(ErrorHandler)
   .withApiClient(new Alexa.DefaultApiClient())
   .withPersistenceAdapter(persistenceAdapter)
-  .withSkillId(config.SKILL_ID)
+  .withSkillId(process.env.SKILL_ID)
   .lambda();
 
-exports.handler = (event, context, callback) =>
+export const handler = (event, context, callback) =>
   (event.source === 'aws.events' ? scheduledEventHandler : skillHandler)(event, context, callback);

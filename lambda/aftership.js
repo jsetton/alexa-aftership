@@ -1,18 +1,15 @@
-'use strict';
-
-const { AfterShip } = require('aftership');
-const config = require('./config.js');
-const device = require('./device.js');
-const location = require('./location.js');
-const moment = require('./moment.js');
-const { formatSpeechMarkup, sayAsSpeechMarkup } = require('./utils');
+import { AfterShip } from 'aftership';
+import device from './device.js';
+import { getGeoLocation } from './location.js';
+import moment from './moment.js';
+import { formatSpeechMarkup, sayAsSpeechMarkup } from './utils.js';
 
 /**
  * AfterShip tracking status
  *    https://docs.aftership.com/api/4/delivery-status
  * @type {Object}
  */
-const trackingStatus = {
+const TRACKING_STATUS = {
   InfoReceived: 'waiting to be received by the carrier',
   InTransit: 'in transit',
   AvailableForPickup: 'available for pickup',
@@ -36,7 +33,7 @@ class AftershipClient {
    */
   constructor() {
     // Initialize AfterShip API
-    this.api = new AfterShip(config.AFTERSHIP_API_KEY);
+    this.api = new AfterShip(process.env.AFTERSHIP_API_KEY);
   }
 
   /**
@@ -47,9 +44,9 @@ class AftershipClient {
     try {
       const { couriers } = await this.api.courier.listAllCouriers();
       return couriers.reduce(
-        (list, courier) => Object.assign(list, {[courier.slug]: courier.name}), {});
+        (list, courier) => ({ ...list, [courier.slug]: courier.name }), {});
     } catch (error) {
-      console.error('Failed to get couriers data:', JSON.stringify(error));
+      console.error('Failed to get couriers data:', error);
       throw error;
     };
   }
@@ -77,20 +74,21 @@ class AftershipClient {
     // Set query object
     this.query = {
       string: keyword,
-      parameters: Object.assign({
-        created_at_min: moment().subtract(config.AFTERSHIP_DAYS_SEARCH, 'days').format(),
-        fields: 'tracking_number,title,slug,tag,last_updated_at,expected_delivery,note,checkpoints'
+      parameters: {
+        created_at_min: moment().subtract(process.env.AFTERSHIP_DAYS_SEARCH, 'days').format(),
+        fields: 'tracking_number,title,slug,tag,last_updated_at,expected_delivery,note,checkpoints',
         // tag: 'InfoReceived,InTransit,AvailableForPickup,OutForDelivery,AttemptFail,Delivered',
-      }, slugs.length > 0 ? {
-        slug: slugs.join(',')
-      } : tag in trackingStatus ? {
-        tag: tag
-      } : keyword ? {
-        keyword: keyword
-      } : {})
+        ...(slugs.length > 0 ? {
+          slug: slugs.join(',')
+        } : tag in TRACKING_STATUS ? {
+          tag: tag
+        } : keyword ? {
+          keyword: keyword
+        } : {})
+      }
     };
 
-    if (config.DEBUG_MODE)
+    if (process.env.DEBUG_MODE === 'true')
       console.log('Aftership trackings query:', JSON.stringify(this.query.parameters));
 
     return this.query;
@@ -109,12 +107,12 @@ class AftershipClient {
       const query = this.getTrackingsQuery(keyword, couriers);
       // Get AfterShip trackings list
       const { trackings } = await this.api.tracking.listTrackings(query.parameters);
-      const regexp = new RegExp(config.AFTERSHIP_NOTE_TAGGING);
+      const regexp = new RegExp(process.env.AFTERSHIP_NOTE_TAGGING);
       const response = [];
 
       trackings.forEach((pkg) => {
-        // Ignore tracking for note not matching tagging regexp if specified
-        if (config.AFTERSHIP_NOTE_TAGGING && (!pkg.note || !pkg.note.match(regexp))) {
+        // Ignore tracking for note not matching tagging regexp
+        if (!regexp.test(pkg.note)) {
           return;
         }
 
@@ -159,10 +157,10 @@ class AftershipClient {
         if (pkg.tag === 'Delivered' && (
           (
             pkg.delivery_date instanceof moment &&
-            pkg.delivery_date.daysToToday() > config.AFTERSHIP_DAYS_PAST_DELIVERED
+            pkg.delivery_date.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED
           ) || (
             pkg.last_updated instanceof moment &&
-            pkg.last_updated.daysToToday() > config.AFTERSHIP_DAYS_PAST_DELIVERED
+            pkg.last_updated.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED
           )
         )) {
           return;
@@ -196,14 +194,14 @@ class AftershipClient {
           multiPkg.trackingIds.push(pkg.tracking_number);
         } else {
           response.push(Object.entries(keymap).reduce((item, [key, attr]) =>
-            Object.assign(item, {[key]: pkg[attr]}), {count: 1, trackingIds: [pkg.tracking_number]}));
+            ({ ...item, [key]: pkg[attr] }), { count: 1, trackingIds: [pkg.tracking_number] }));
         }
       });
 
       // Return the sorted configured count limit results
-      return this.sortTrackingsInformation(response).slice(0, config.AFTERSHIP_TRACKING_COUNT_LIMIT);
+      return this.sortTrackingsInformation(response).slice(0, process.env.AFTERSHIP_TRACKING_COUNT_LIMIT);
     } catch (error) {
-      console.error('Failed to get trackings data:', JSON.stringify(error));
+      console.error('Failed to get trackings data:', error);
       throw error;
     }
   }
@@ -251,7 +249,7 @@ class AftershipClient {
    */
   async getTrackingsAddress(trackings) {
     const geodata = await Promise.all(
-      trackings.map(tracking => tracking.location && location.getGeoLocation(tracking.location, true)));
+      trackings.map(tracking => tracking.location && getGeoLocation(tracking.location, true)));
 
     geodata.forEach((address, index) => {
       if (address) {
@@ -260,7 +258,7 @@ class AftershipClient {
           return ['lat', 'lng'].includes(key) || address[key] === device.location[key];
         })) {
           trackings[index].address = 'here';
-        } else if (!address.country || address.country === config.DEFAULT_COUNTRY) {
+        } else if (!address.country || address.country === process.env.DEFAULT_COUNTRY) {
           trackings[index].address = address.city ? address.state ?
             `${address.city}, ${address.state}` : address.city : '';
         } else {
@@ -300,20 +298,20 @@ class AftershipClient {
       switch (pkg.tag) {
         case 'AttemptFail':
           message.push(
-            trackingStatus['AttemptFail'],
+            TRACKING_STATUS.AttemptFail,
             pkg.date ? pkg.date.calendar() : ''
           );
           break;
         case 'Exception':
           message.push(
-            pkg.count === 1 ? 'is' : 'are', trackingStatus['Exception'],
+            pkg.count === 1 ? 'is' : 'are', TRACKING_STATUS.Exception,
             pkg.date ? `as of ${pkg.date.calendar()}` : ''
           );
           break;
         case 'Delivered':
           message.push(
             pkg.count === 1 ? 'was' : 'were',
-            pkg.lastUpdated && !pkg.date ? 'marked as' : '', trackingStatus['Delivered'],
+            pkg.lastUpdated && !pkg.date ? 'marked as' : '', TRACKING_STATUS.Delivered,
             pkg.address ? pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'here' : '',
             pkg.date ? pkg.date.calendar() : pkg.lastUpdated ? pkg.lastUpdated.calendar() : '',
             pkg.date ? `at ${pkg.date.format('LT')}` : ''
@@ -321,23 +319,22 @@ class AftershipClient {
           break;
         case 'OutForDelivery':
           message.push(
-            pkg.count === 1 ? 'is' : 'are', trackingStatus['OutForDelivery'],
+            pkg.count === 1 ? 'is' : 'are', TRACKING_STATUS.OutForDelivery,
             pkg.address ? pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : 'towards here' : '',
             pkg.date ? `since ${pkg.date.format('LT')}` : ''
           );
           break;
         case 'AvailableForPickup':
           message.push(
-            pkg.count === 1 ? 'is' : 'are', trackingStatus['AvailableForPickup'],
+            pkg.count === 1 ? 'is' : 'are', TRACKING_STATUS.AvailableForPickup,
             pkg.address && pkg.address !== 'here' ? 'in ' + sayAsSpeechMarkup(pkg.address, 'address') : '',
             pkg.date ? `since ${pkg.date.format('LT')}` : ''
           );
           break;
         default:
           message.push(
-            pkg.date ? trackingStatus['Expected' + (
-              pkg.date.daysFromToday() >= 0 ? 'Present' : 'Past'
-            )] + ' ' + pkg.date.calendar() : (pkg.count === 1 ? 'is ' : 'are ') + trackingStatus[pkg.tag]
+            pkg.date ? (pkg.date.daysFromToday() >= 0 ? TRACKING_STATUS.ExpectedPresent : TRACKING_STATUS.ExpectedPast)
+            + ' ' + pkg.date.calendar() : (pkg.count === 1 ? 'is ' : 'are ') + TRACKING_STATUS[pkg.tag]
           );
           break;
       }
@@ -349,8 +346,8 @@ class AftershipClient {
       summary: 'Currently, you have '.concat(
         Object.keys(summary).reduce((result, status, idx, obj) => result.concat(
           idx > 0 ? idx !== obj.length - 1 ? ', ' : ', and ' : '',
-          summary[status], summary[status] > 1 ? ' packages ' : ' package ', trackingStatus[status]
-        ), '') || (query.parameters.tag ? `no package ${trackingStatus[query.parameters.tag]}` : 'no package'),
+          summary[status], summary[status] > 1 ? ' packages ' : ' package ', TRACKING_STATUS[status]
+        ), '') || (query.parameters.tag ? `no package ${TRACKING_STATUS[query.parameters.tag]}` : 'no package'),
         query.parameters.keyword || query.parameters.slug ? ` from ${query.string}` : '',
         Object.keys(summary).length > 0 ? ':' : '.'
       ),
@@ -397,16 +394,18 @@ class AftershipClient {
             event: {
               name: 'AMAZON.OrderStatus.Updated',
               payload: {
-                state: Object.assign({
+                state: {
                   status: trackingEvents[pkg.tag].status,
-                  enterTimeStamp: pkg.lastUpdated.toISOString()
-                }, pkg.date && trackingEvents[pkg.tag].status === 'ORDER_DELIVERED' && {
-                  deliveredOn: pkg.date.toISOString()
-                }, pkg.date && trackingEvents[pkg.tag].status === 'ORDER_SHIPPED' && {
-                  deliveryDetails: {
-                    expectedArrival: pkg.date.endOf('day').toISOString()
-                  }
-                }),
+                  enterTimeStamp: pkg.lastUpdated.toISOString(),
+                  ...(pkg.date && trackingEvents[pkg.tag].status === 'ORDER_DELIVERED' && {
+                    deliveredOn: pkg.date.toISOString()
+                  }),
+                  ...(pkg.date && trackingEvents[pkg.tag].status === 'ORDER_SHIPPED' && {
+                    deliveryDetails: {
+                      expectedArrival: pkg.date.endOf('day').toISOString()
+                    }
+                  })
+                },
                 order: {
                   seller: {
                     name: 'localizedattribute:sellerName'
@@ -433,7 +432,7 @@ class AftershipClient {
  * @param  {String} lastEvent
  * @return {Promise}
  */
-async function getProactiveEvents(lastEvent) {
+export const getProactiveEvents = async (lastEvent) => {
   try {
     // Initialize AfterShip client
     const client = new AftershipClient();
@@ -445,7 +444,7 @@ async function getProactiveEvents(lastEvent) {
     // Catch all errors
     throw error;
   }
-}
+};
 
 /**
  * Returns trackings speech output
@@ -453,7 +452,7 @@ async function getProactiveEvents(lastEvent) {
  * @param  {Array}  footnotes
  * @return {Promise}
  */
-async function getSpeechOutput(keyword, footnotes) {
+export const getSpeechOutput = async (keyword, footnotes) => {
   try {
     // Initialize AfterShip client
     const client = new AftershipClient();
@@ -465,9 +464,4 @@ async function getSpeechOutput(keyword, footnotes) {
     // Catch all errors
     throw error;
   }
-};
-
-module.exports = {
-  getProactiveEvents,
-  getSpeechOutput
 };
