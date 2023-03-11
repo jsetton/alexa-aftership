@@ -98,9 +98,7 @@ const addPermission = (ruleArn) => {
     StatementId: ruleName,
     SourceArn: ruleArn
   });
-  return lambdaClient.send(command).catch((error) => {
-    if (!(error instanceof ResourceConflictException)) throw error;
-  });
+  return lambdaClient.send(command);
 };
 
 /**
@@ -112,9 +110,7 @@ const removePermission = () => {
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     StatementId: ruleName
   });
-  return lambdaClient.send(command).catch((error) => {
-    if (!(error instanceof ResourceNotFoundException)) throw error;
-  });
+  return lambdaClient.send(command);
 };
 
 /**
@@ -124,8 +120,12 @@ const removePermission = () => {
  * @return {Promise}
  */
 export const createEventSchedule = async (functionArn, userId) => {
-  const response = await createRule();
-  await Promise.all([addPermission(response.RuleArn), createTarget(functionArn, userId)]);
+  try {
+    const response = await createRule();
+    await Promise.all([addPermission(response.RuleArn), createTarget(functionArn, userId)]);
+  } catch (error) {
+    if (!(error instanceof ResourceConflictException)) throw error;
+  }
 };
 
 /**
@@ -133,6 +133,10 @@ export const createEventSchedule = async (functionArn, userId) => {
  * @return {Promise}
  */
 export const deleteEventSchedule = async () => {
-  await Promise.all([deleteTarget(), removePermission()]);
-  await deleteRule();
+  try {
+    await Promise.all([deleteTarget(), removePermission()]);
+    await deleteRule();
+  } catch (error) {
+    if (!(error instanceof ResourceNotFoundException)) throw error;
+  }
 };
