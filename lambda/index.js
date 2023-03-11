@@ -26,8 +26,10 @@ const SPEECH_MESSAGE = {
  */
 const SkillEventHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.SkillDisabled' ||
-      Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.ProactiveSubscriptionChanged';
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.SkillDisabled' ||
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'AlexaSkillEvent.ProactiveSubscriptionChanged'
+    );
   },
   async handle(handlerInput) {
     try {
@@ -36,7 +38,9 @@ const SkillEventHandler = {
       // Set up event schedule if subscriptions not empty, otherwise delete it
       if (subscriptions.length > 0) {
         await createEventSchedule(
-          handlerInput.context.invokedFunctionArn, Alexa.getUserId(handlerInput.requestEnvelope));
+          handlerInput.context.invokedFunctionArn,
+          Alexa.getUserId(handlerInput.requestEnvelope)
+        );
         console.info('Event schedule has been created.');
       } else {
         await deleteEventSchedule();
@@ -59,7 +63,7 @@ const SkillEventHandler = {
  */
 const SkillMessagingHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'Messaging.MessageReceived'
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'Messaging.MessageReceived';
   },
   async handle(handlerInput) {
     try {
@@ -78,15 +82,17 @@ const SkillMessagingHandler = {
           console.log('Proactive events:', JSON.stringify(events));
         }
         // Define proactive events promises, appending relevant audience property to each event
-        const promises = events.map(event => createProactiveEvent({
-          ...event,
-          relevantAudience: {
-          type: 'Unicast',
-            payload: {
-              user: Alexa.getUserId(handlerInput.requestEnvelope)
+        const promises = events.map((event) =>
+          createProactiveEvent({
+            ...event,
+            relevantAudience: {
+              type: 'Unicast',
+              payload: {
+                user: Alexa.getUserId(handlerInput.requestEnvelope)
+              }
             }
-          }
-        }));
+          })
+        );
         // Create all notifications
         await Promise.all(promises);
         // Store latest user attributes to database
@@ -124,12 +130,13 @@ const LaunchRequestHandler = {
  */
 const TrackingSearchIntentHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
-      Alexa.getIntentName(handlerInput.requestEnvelope) === 'TrackingSearchIntent';
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+      Alexa.getIntentName(handlerInput.requestEnvelope) === 'TrackingSearchIntent'
+    );
   },
   async handle(handlerInput) {
-    const consentToken = handlerInput.requestEnvelope.context.System.user.permissions &&
-      handlerInput.requestEnvelope.context.System.user.permissions.consentToken;
+    const consentToken = handlerInput.requestEnvelope.context.System.user.permissions?.consentToken;
     const footnotes = [];
 
     // Check if device permission consent token defined
@@ -196,15 +203,17 @@ const TrackingSearchIntentHandler = {
       // Send trackings speech output results
       return handlerInput.responseBuilder
         .speak(speechOutput)
-        .withStandardCard('Tracking Information', stripSpeechMarkup(speechOutput),
-          process.env.CARD_SMALL_IMG_URL, process.env.CARD_LARGE_IMG_URL)
+        .withStandardCard(
+          'Tracking Information',
+          stripSpeechMarkup(speechOutput),
+          process.env.CARD_SMALL_IMG_URL,
+          process.env.CARD_LARGE_IMG_URL
+        )
         .getResponse();
     } catch (error) {
       // Catch AfterShip tracking errors
       console.error("Couln't get aftership trackings list:", error);
-      return handlerInput.responseBuilder
-        .speak(SPEECH_MESSAGE.Error)
-        .getResponse();
+      return handlerInput.responseBuilder.speak(SPEECH_MESSAGE.Error).getResponse();
     }
   }
 };
@@ -215,14 +224,13 @@ const TrackingSearchIntentHandler = {
  */
 const HelpIntentHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
-      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent'
+    );
   },
   handle(handlerInput) {
-    return handlerInput.responseBuilder
-      .speak(SPEECH_MESSAGE.Help)
-      .reprompt(SPEECH_MESSAGE.Help)
-      .getResponse();
+    return handlerInput.responseBuilder.speak(SPEECH_MESSAGE.Help).reprompt(SPEECH_MESSAGE.Help).getResponse();
   }
 };
 
@@ -232,13 +240,13 @@ const HelpIntentHandler = {
  */
 const StopIntentHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
-      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent';
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent'
+    );
   },
   handle(handlerInput) {
-    return handlerInput.responseBuilder
-      .speak(SPEECH_MESSAGE.Stop)
-      .getResponse();
+    return handlerInput.responseBuilder.speak(SPEECH_MESSAGE.Stop).getResponse();
   }
 };
 
@@ -248,13 +256,13 @@ const StopIntentHandler = {
  */
 const CancelIntentHandler = {
   canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
-      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.CancelIntent';
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest' &&
+      Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.CancelIntent'
+    );
   },
   handle(handlerInput) {
-    return handlerInput.responseBuilder
-      .speak(SPEECH_MESSAGE.Cancel)
-      .getResponse();
+    return handlerInput.responseBuilder.speak(SPEECH_MESSAGE.Cancel).getResponse();
   }
 };
 
@@ -284,9 +292,7 @@ const ErrorHandler = {
   },
   handle(handlerInput, error) {
     console.error('Request error:', error);
-    return handlerInput.responseBuilder
-      .speak(SPEECH_MESSAGE.Error)
-      .getResponse();
+    return handlerInput.responseBuilder.speak(SPEECH_MESSAGE.Error).getResponse();
   }
 };
 

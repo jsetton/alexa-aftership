@@ -1,6 +1,6 @@
 {
   "name": "alexa-aftership",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "AfterShip Shipment Tracking for Alexa",
   "license": "MIT",
   "author": "Jeremy Setton",
@@ -11,17 +11,29 @@
   "type": "module",
   "exports": "./index.js",
   "scripts": {
+    "format": "prettier --write '**/*.js'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@aws-sdk/client-eventbridge": "^3.266.0",
-    "@aws-sdk/client-lambda": "^3.266.0",
-    "@googlemaps/google-maps-services-js": "^3.3.26",
+    "@aws-sdk/client-eventbridge": "^3.289.0",
+    "@aws-sdk/client-lambda": "^3.289.0",
+    "@googlemaps/google-maps-services-js": "^3.3.27",
     "aftership": "^7.0.5",
     "ask-sdk-core": "^2.12.1",
     "ask-sdk-dynamodb-persistence-adapter": "^2.12.1",
-    "ask-sdk-model": "^1.46.0",
-    "got": "^12.5.3",
-    "moment-timezone": "^0.5.40"
+    "ask-sdk-model": "^1.57.0",
+    "got": "^12.6.0",
+    "moment-timezone": "^0.5.41"
+  },
+  "devDependencies": {
+    "prettier": "^2.8.4"
+  },
+  "prettier": {
+    "printWidth": 120,
+    "tabWidth": 2,
+    "useTabs": false,
+    "singleQuote": true,
+    "trailingComma": "none",
+    "bracketSpacing": true
   }
 }

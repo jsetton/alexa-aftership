@@ -16,7 +16,9 @@ const getAccessToken = (scope) => {
       client_secret: process.env.SKILL_CLIENT_SECRET
     }
   };
-  return got(options).json().then((response) => response.access_token);
+  return got(options)
+    .json()
+    .then((response) => response.access_token);
 };
 
 /**
@@ -55,4 +57,4 @@ export const sendSkillMessage = async (userId, data) => {
     }
   };
   return got(options);
-}
+};

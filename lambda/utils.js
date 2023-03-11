@@ -3,13 +3,20 @@
  * @type {Array}
  */
 const supportedSayAs = [
-  'characters', 'spell-out',
-  'cardinal', 'number',
-  'ordinal', 'digits',
-  'fraction', 'unit',
-  'date', 'time',
-  'telephone', 'address',
-  'interjection', 'expletive'
+  'characters',
+  'spell-out',
+  'cardinal',
+  'number',
+  'ordinal',
+  'digits',
+  'fraction',
+  'unit',
+  'date',
+  'time',
+  'telephone',
+  'address',
+  'interjection',
+  'expletive'
 ];
 
 /**
@@ -47,13 +54,9 @@ const encodeSpeechMarkup = (text) => {
  */
 export const formatSpeechMarkup = (text) => {
   return encodeSpeechMarkup(text)
+    .replace(/\b(\d+)\b/g, sayAsSpeechMarkup('$1', 'cardinal'))
+    .replace(/\b(\d*?)[+\s]*(\d+\/\d+)\b/, sayAsSpeechMarkup('$1' ? '$1+$2' : '$2', 'fraction'))
     .replace(
-      /\b(\d+)\b/g,
-      sayAsSpeechMarkup('$1', 'cardinal')
-    ).replace(
-      /\b(\d*?)[+\s]*(\d+\/\d+)\b/,
-      sayAsSpeechMarkup('$1' ? '$1+$2' : '$2', 'fraction')
-    ).replace(
       /\b\d+\s*([cmk]?[glm]|(?:sq)?ft|in|mi|yd|lb[s]?|oz|gal|qt|pt|h|min|[m]?s)\b/,
       sayAsSpeechMarkup('$1', 'unit')
     );
