@@ -38,8 +38,7 @@ export const getGeoLocation = async (address, ignoreError = false) => {
     return location;
   } catch (error) {
     console.error('Failed to get geocode data', error);
-    if (!ignoreError)
-      throw error;
+    if (!ignoreError) throw error;
   }
 };
 
@@ -57,7 +56,6 @@ export const getTimezoneId = async (location, ignoreError = false) => {
     return data.timeZoneId;
   } catch (error) {
     console.error('Failed to get timezone data', error);
-    if (!ignoreError)
-      throw error;
+    if (!ignoreError) throw error;
   }
 };

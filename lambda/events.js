@@ -5,7 +5,13 @@ import {
   PutTargetsCommand,
   RemoveTargetsCommand
 } from '@aws-sdk/client-eventbridge';
-import { LambdaClient, AddPermissionCommand, RemovePermissionCommand } from '@aws-sdk/client-lambda';
+import {
+  LambdaClient,
+  AddPermissionCommand,
+  RemovePermissionCommand,
+  ResourceConflictException,
+  ResourceNotFoundException
+} from '@aws-sdk/client-lambda';
 
 // Create Event Bridge client
 const eventBridgeClient = new EventBridgeClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -38,18 +44,20 @@ const createRule = () => {
 const createTarget = (functionArn, userId) => {
   const command = new PutTargetsCommand({
     Rule: ruleName,
-    Targets: [{
-      Id: targetId,
-      Arn: functionArn,
-      Input: JSON.stringify({
-        source: 'aws.events',
-        type: 'skillMessaging',
-        message: {
-          event: 'getProactiveEvents'
-        },
-        userId: userId
-      })
-    }]
+    Targets: [
+      {
+        Id: targetId,
+        Arn: functionArn,
+        Input: JSON.stringify({
+          source: 'aws.events',
+          type: 'skillMessaging',
+          message: {
+            event: 'getProactiveEvents'
+          },
+          userId: userId
+        })
+      }
+    ]
   });
   return eventBridgeClient.send(command);
 };
@@ -90,11 +98,13 @@ const addPermission = (ruleArn) => {
     StatementId: ruleName,
     SourceArn: ruleArn
   });
-  return lambdaClient.send(command);
+  return lambdaClient.send(command).catch((error) => {
+    if (!(error instanceof ResourceConflictException)) throw error;
+  });
 };
 
 /**
- * Remote event rule lambda permission
+ * Remove event rule lambda permission
  * @return {Promise}
  */
 const removePermission = () => {
@@ -102,7 +112,9 @@ const removePermission = () => {
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     StatementId: ruleName
   });
-  return lambdaClient.send(command);
+  return lambdaClient.send(command).catch((error) => {
+    if (!(error instanceof ResourceNotFoundException)) throw error;
+  });
 };
 
 /**
@@ -113,10 +125,7 @@ const removePermission = () => {
  */
 export const createEventSchedule = async (functionArn, userId) => {
   const response = await createRule();
-  await Promise.all([
-    addPermission(response.RuleArn),
-    createTarget(functionArn, userId)
-  ]);
+  await Promise.all([addPermission(response.RuleArn), createTarget(functionArn, userId)]);
 };
 
 /**
@@ -124,9 +133,6 @@ export const createEventSchedule = async (functionArn, userId) => {
  * @return {Promise}
  */
 export const deleteEventSchedule = async () => {
-  await Promise.all([
-    deleteTarget(),
-    removePermission()
-  ]);
+  await Promise.all([deleteTarget(), removePermission()]);
   await deleteRule();
 };

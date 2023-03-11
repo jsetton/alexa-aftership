@@ -8,24 +8,24 @@ moment.updateLocale('en', {
     lastDay: '[yesterday]',
     lastWeek: '[last] dddd',
     sameElse: '[on] dddd, MMMM Do'
-  },
+  }
 });
 
-moment.prototype.countDays = function(date, type) {
+moment.prototype.countDays = function (date, type) {
   const dateA = this.clone().startOf('day');
   const dateB = date.clone().startOf('day');
   return type === 'from' ? dateA.diff(dateB, 'days') : dateB.diff(dateA, 'days');
-}
+};
 
-moment.prototype.daysFromToday = function() {
+moment.prototype.daysFromToday = function () {
   return this.countDays(moment().tz(this.tz()), 'from');
 };
 
-moment.prototype.daysToToday = function() {
+moment.prototype.daysToToday = function () {
   return this.countDays(moment().tz(this.tz()), 'to');
 };
 
-moment.prototype.setTimezone = function(timezone) {
+moment.prototype.setTimezone = function (timezone) {
   const input = this.creationData().input;
   // Check if input timestamp included timezone information
   if (typeof input !== 'string' || input.match(/(?:[+-]\d{2}[:]?\d{2}|Z)$/)) {
