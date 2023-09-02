@@ -18,7 +18,7 @@
       },
       "distributionCountries": [],
       "isAvailableWorldwide": true,
-      "distributionMode": "PRIVATE",
+      "distributionMode": "PUBLIC",
       "testingInstructions": "Ask to track shipments",
       "category": "ORGANIZERS_AND_ASSISTANTS"
     },
