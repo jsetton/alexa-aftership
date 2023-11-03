@@ -1,6 +1,6 @@
 {
   "name": "alexa-aftership",
-  "version": "2.7.7",
+  "version": "2.8.0",
   "description": "AfterShip Shipment Tracking for Alexa",
   "license": "MIT",
   "author": "Jeremy Setton",
@@ -15,9 +15,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@aws-sdk/client-eventbridge": "^3.405.0",
-    "@aws-sdk/client-lambda": "^3.405.0",
-    "@googlemaps/google-maps-services-js": "^3.3.36",
+    "@aws-sdk/client-eventbridge": "^3.441.0",
+    "@aws-sdk/client-lambda": "^3.441.0",
+    "@googlemaps/google-maps-services-js": "^3.3.41",
     "aftership": "^7.0.7",
     "ask-sdk-core": "^2.14.0",
     "ask-sdk-dynamodb-persistence-adapter": "^2.14.0",

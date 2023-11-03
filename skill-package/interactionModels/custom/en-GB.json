@@ -1,0 +1,37 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "after ship",
+      "intents": [
+        {
+          "name": "TrackingSearchIntent",
+          "samples": [
+            "where's my stuff",
+            "track my packages {query}",
+            "do i have any packages {query}",
+            "if i have any packages {query}",
+            "track my shipments {query}",
+            "do i have any shipments {query}",
+            "if i have any shipments {query}"
+          ],
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent"
+        },
+        {
+          "name": "AMAZON.StopIntent"
+        },
+        {
+          "name": "AMAZON.CancelIntent"
+        }
+      ],
+      "types": []
+    }
+  }
+}

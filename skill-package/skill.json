@@ -7,8 +7,56 @@
           "name": "AfterShip",
           "summary": "AfterShip Shipment Tracking Skill",
           "description": "Unofficial AfterShip Shipment Tracking Skill.",
-          "smallIconUri": "file://assets/images/en-US_smallIcon.png",
-          "largeIconUri": "file://assets/images/en-US_largeIcon.png",
+          "smallIconUri": "file://assets/images/aftership_smallIcon.png",
+          "largeIconUri": "file://assets/images/aftership_largeIcon.png",
+          "examplePhrases": [
+            "Alexa, ask aftership where's my stuff?",
+            "Alexa, ask aftership to track my shipments from Amazon",
+            "Alexa, ask aftership do I have any packages out for delivery?"
+          ]
+        },
+        "en-AU": {
+          "name": "AfterShip",
+          "summary": "AfterShip Shipment Tracking Skill",
+          "description": "Unofficial AfterShip Shipment Tracking Skill.",
+          "smallIconUri": "file://assets/images/aftership_smallIcon.png",
+          "largeIconUri": "file://assets/images/aftership_largeIcon.png",
+          "examplePhrases": [
+            "Alexa, ask aftership where's my stuff?",
+            "Alexa, ask aftership to track my shipments from Amazon",
+            "Alexa, ask aftership do I have any packages out for delivery?"
+          ]
+        },
+        "en-CA": {
+          "name": "AfterShip",
+          "summary": "AfterShip Shipment Tracking Skill",
+          "description": "Unofficial AfterShip Shipment Tracking Skill.",
+          "smallIconUri": "file://assets/images/aftership_smallIcon.png",
+          "largeIconUri": "file://assets/images/aftership_largeIcon.png",
+          "examplePhrases": [
+            "Alexa, ask aftership where's my stuff?",
+            "Alexa, ask aftership to track my shipments from Amazon",
+            "Alexa, ask aftership do I have any packages out for delivery?"
+          ]
+        },
+        "en-GB": {
+          "name": "AfterShip",
+          "summary": "AfterShip Shipment Tracking Skill",
+          "description": "Unofficial AfterShip Shipment Tracking Skill.",
+          "smallIconUri": "file://assets/images/aftership_smallIcon.png",
+          "largeIconUri": "file://assets/images/aftership_largeIcon.png",
+          "examplePhrases": [
+            "Alexa, ask aftership where's my stuff?",
+            "Alexa, ask aftership to track my shipments from Amazon",
+            "Alexa, ask aftership do I have any packages out for delivery?"
+          ]
+        },
+        "en-IN": {
+          "name": "AfterShip",
+          "summary": "AfterShip Shipment Tracking Skill",
+          "description": "Unofficial AfterShip Shipment Tracking Skill.",
+          "smallIconUri": "file://assets/images/aftership_smallIcon.png",
+          "largeIconUri": "file://assets/images/aftership_largeIcon.png",
           "examplePhrases": [
             "Alexa, ask aftership where's my stuff?",
             "Alexa, ask aftership to track my shipments from Amazon",
