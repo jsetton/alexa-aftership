@@ -20,10 +20,21 @@ In order to use the ASK CLI features to automatically deploy and manage your Lam
 
 You will have to install the latest [ASK CLI](https://developer.amazon.com/docs/smapi/quick-start-alexa-skills-kit-command-line-interface.html), and then configure it:
 
+```shell
+npm install -g ask-cli
+ask configure
 ```
-$ npm install -g ask-cli
-$ ask configure
-```
+
+By default, the ASK CLI deploys the skill resources in the `us-east-1` region. You will need to change your deploy region based on the skill language you are planning to use. You should refer to the table below, based on the [smart home multi-languages development guidelines](https://developer.amazon.com/docs/smarthome/develop-smart-home-skills-in-multiple-languages.html#deploy):
+
+| Skill Language | Endpoint Region | Deploy Region |
+| -------------- | --------------- | ------------- |
+| English (CA), English (US) | North America | `us-east-1` |
+| English (UK) | Europe | `eu-west-1` |
+| English (IN) | India | `eu-west-1` |
+| English (AU) | Far East | `us-west-2` |
+
+To change your deploy region, update the `awsRegion` skill infrastructure user config parameter in [`ask-resources.json`](ask-resources.json).
 
 ## Credentials
 
@@ -82,26 +93,8 @@ Access to Google Maps API requires to setup a key. This access is necessary for 
         | `NotificationScheduleRate` | Proactive event notification check schedule rate in minutes. (Default: 30) |
 
 2. Deploy the skill and all AWS resources in one step:
-    ```
-    $ ask deploy
-    Deploy configuration loaded from ask-resources.json
-    Deploy project for profile [default]
-
-    ==================== Deploy Skill Metadata ====================
-    Skill package deployed successfully.
-    Skill ID: <skillId>
-
-    ==================== Build Skill Code ====================
-    Skill code built successfully.
-    Code for region default built to <skillPath>/.ask/lambda/build.zip successfully with build flow NodeJsNpmBuildFlow.
-
-    ==================== Deploy Skill Infrastructure ====================
-    ✔ Deploy Alexa skill infrastructure for region "default"
-    The api endpoints of skill.json have been updated from the skill infrastructure deploy results.
-    Skill infrastructures deployed successfully through @ask-cli/cfn-deployer.
-
-    ==================== Enable Skill ====================
-    Skill is enabled successfully.
+    ```shell
+    ask deploy
     ```
 
 3. In your Alexa app, go to More > Skills & Games, find the AfterShip List Sync skill under Your Skills > Dev tab and enable it. Make sure that the "Device Country and Postal Code", and "Alexa Notifications" permissions are granted.
