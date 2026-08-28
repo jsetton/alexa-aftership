@@ -1,10 +1,10 @@
 import Alexa from 'ask-sdk-core';
-import { DynamoDbPersistenceAdapter } from 'ask-sdk-dynamodb-persistence-adapter';
 import { getProactiveEvents, getSpeechOutput } from './aftership.js';
 import { createProactiveEvent, sendSkillMessage } from './api.js';
 import device from './device.js';
 import { createEventSchedule, deleteEventSchedule } from './events.js';
 import moment from './moment.js';
+import { DynamoDbPersistenceAdapter } from './persistence.js';
 import { sayAsSpeechMarkup, stripSpeechMarkup } from './utils.js';
 
 /**
@@ -348,10 +348,10 @@ const scheduledEventHandler = async (event) => {
 };
 
 /**
- * Defines skill handler
+ * Defines alexa skill
  * @type {Object}
  */
-const skillHandler = Alexa.SkillBuilders.custom()
+const skill = Alexa.SkillBuilders.custom()
   .addRequestHandlers(
     SkillEventHandler,
     SkillMessagingHandler,
@@ -368,7 +368,17 @@ const skillHandler = Alexa.SkillBuilders.custom()
   .withApiClient(new Alexa.DefaultApiClient())
   .withPersistenceAdapter(persistenceAdapter)
   .withSkillId(process.env.SKILL_ID)
-  .lambda();
+  .create();
 
-export const handler = (event, context, callback) =>
-  (event.source === 'aws.events' ? scheduledEventHandler : skillHandler)(event, context, callback);
+/**
+ * Handles lambda event
+ * @param  {Object} event
+ * @param  {Object} context
+ * @returns {Promise}
+ */
+export const handler = (event, context) => {
+  if (event.source === 'aws.events') {
+    return scheduledEventHandler(event)
+  }
+  return skill.invoke(event, context);
+}
