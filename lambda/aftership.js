@@ -1,4 +1,4 @@
-import { AfterShip } from 'aftership';
+import { AfterShip } from '@aftership/tracking-sdk';
 import device from './device.js';
 import { getGeoLocation } from './location.js';
 import moment from './moment.js';
@@ -33,7 +33,9 @@ class AftershipClient {
    */
   constructor() {
     // Initialize AfterShip API
-    this.api = new AfterShip(process.env.AFTERSHIP_API_KEY);
+    this.api = new AfterShip({
+      api_key: process.env.AFTERSHIP_API_KEY
+    });
   }
 
   /**
@@ -42,7 +44,7 @@ class AftershipClient {
    */
   async getCourierNames() {
     try {
-      const { couriers } = await this.api.courier.listAllCouriers();
+      const { data: { couriers } } = await this.api.courier.getCouriers();
       return couriers.reduce((list, courier) => ({ ...list, [courier.slug]: courier.name }), {});
     } catch (error) {
       console.error('Failed to get couriers data:', error);
@@ -77,7 +79,7 @@ class AftershipClient {
       string: keyword,
       parameters: {
         created_at_min: moment().subtract(process.env.AFTERSHIP_DAYS_SEARCH, 'days').format(),
-        fields: 'tracking_number,title,slug,tag,last_updated_at,expected_delivery,note,checkpoints',
+        fields: 'tracking_number,title,slug,tag,created_at,updated_at,latest_estimated_delivery,note,checkpoints',
         // tag: 'InfoReceived,InTransit,AvailableForPickup,OutForDelivery,AttemptFail,Delivered',
         ...((slug && { slug }) || (tag && { tag }) || (keyword && { keyword }))
       }
@@ -101,108 +103,102 @@ class AftershipClient {
       // Generate AfterShip trackings query
       const query = this.getTrackingsQuery(keyword, couriers);
       // Get AfterShip trackings list
-      const { trackings } = await this.api.tracking.listTrackings(query.parameters);
+      const { data: { trackings } } = await this.api.tracking.getTrackings(query.parameters);
       const regexp = new RegExp(process.env.AFTERSHIP_NOTE_TAGGING);
       const response = [];
 
-      trackings.forEach((pkg) => {
+      trackings.forEach((tracking) => {
         // Ignore tracking for note not matching tagging regexp
-        if (!regexp.test(pkg.note)) {
+        if (!regexp.test(tracking.note)) {
           return;
         }
 
-        // Set courier name based on slug
-        pkg.courier = couriers[pkg.slug];
-
-        // Set last updated date
-        pkg.last_updated = moment(pkg.last_updated_at).setTimezone(device.timezone);
+        const pkg = {
+          tag: tracking.tag,
+          slug: tracking.slug,
+          title: tracking.title,
+          courier: couriers[tracking.slug],
+          lastUpdated: moment(tracking.updated_at || tracking.created_at).setTimezone(device.timezone),
+        };
 
         // Set tag event number based on checkpoints tag and unique created_at parameters
-        pkg.tag_event_number = pkg.checkpoints.filter(
+        pkg.tagEventNumber = tracking.checkpoints.filter(
           (checkpoint, index, array) =>
-            checkpoint.tag === pkg.tag && array.findIndex((item) => item.created_at === checkpoint.created_at) === index
+            checkpoint.tag === tracking.tag &&
+            array.findIndex((item) => item.created_at === checkpoint.created_at) === index
         ).length;
 
         // Set delivery information if currently available for pickup, out for delivery or delivered,
         //  otherwise use expected as delivery date
-        if (['AvailableForPickup', 'OutForDelivery', 'Delivered'].includes(pkg.tag)) {
+        if (['AvailableForPickup', 'OutForDelivery', 'Delivered'].includes(tracking.tag)) {
           // Find latest checkpoint tag event
-          const checkpoint = pkg.checkpoints
+          const checkpoint = tracking.checkpoints
             .slice()
             .reverse()
-            .find((checkpoint) => checkpoint.tag === pkg.tag);
+            .find((checkpoint) => checkpoint.tag === tracking.tag);
 
           if (checkpoint) {
             // Delivery date
             if (checkpoint.checkpoint_time) {
-              pkg.delivery_date = moment(checkpoint.checkpoint_time).setTimezone(device.timezone);
+              pkg.date =
+                checkpoint.checkpoint_time.length === 10
+                  ? // If the carrier only provided YYYY-MM-DD, lock it to UTC to avoid shift bugs
+                    moment.utc(checkpoint.checkpoint_time)
+                  : // Parse the carrier string safely and explicitly match the Alexa user's timezone context
+                    moment(checkpoint.checkpoint_time).setTimezone(device.timezone);
             }
             // Delivery location
-            const location = [];
-            ['city', 'state', 'country_name', 'zip'].forEach((item) => {
-              if (checkpoint[item]) {
-                location.push(checkpoint[item]);
-              }
-            });
-            if (location.length > 0) {
-              pkg.delivery_location = location.join(', ');
+            if (checkpoint.location) {
+              pkg.location = checkpoint.location;
             }
           }
-        } else if (pkg.expected_delivery) {
-          pkg.delivery_date = moment(pkg.expected_delivery).setTimezone(device.timezone);
+        } else if (tracking.latest_estimated_delivery?.datetime) {
+          pkg.date =
+            tracking.latest_estimated_delivery.datetime.length === 10
+              ? // If the carrier only provided YYYY-MM-DD, lock it to UTC to avoid shift bugs
+                moment.utc(tracking.latest_estimated_delivery.datetime)
+              : // Parse the carrier string safely and explicitly match the Alexa user's timezone context
+                moment(tracking.latest_estimated_delivery.datetime).setTimezone(device.timezone);
         }
 
         // Ignore tracking for delivered packages older than defined day.
         if (
           pkg.tag === 'Delivered' &&
-          ((pkg.delivery_date instanceof moment &&
-            pkg.delivery_date.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED) ||
-            (pkg.last_updated instanceof moment &&
-              pkg.last_updated.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED))
+          ((pkg.date instanceof moment &&
+            pkg.date.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED) ||
+            (pkg.lastUpdated instanceof moment &&
+              pkg.lastUpdated.daysToToday() > process.env.AFTERSHIP_DAYS_PAST_DELIVERED))
         ) {
           return;
         }
 
-        // Response key mapping
-        const keymap = {
-          tag: 'tag',
-          slug: 'slug',
-          courier: 'courier',
-          title: 'title',
-          date: 'delivery_date',
-          location: 'delivery_location',
-          lastUpdated: 'last_updated',
-          tagEventNumber: 'tag_event_number'
-        };
         // Determine if package part of multi-package
         const multiPkg = response.find((item) =>
-          Object.entries(keymap).every(([key, attr]) => {
-            if (key === 'lastUpdated' || key === 'tagEventNumber') {
-              return true;
-            } else if (key === 'tag') {
+          ['tag', 'slug', 'title', 'courier', 'date', 'location'].every((key) => {
+            if (key === 'tag') {
               const tag = ['AttemptFail', 'AvailableForPickup', 'Exception', 'Delivered', 'OutForDelivery'];
-              return tag.indexOf(item[key]) === tag.indexOf(pkg[attr]);
-            } else if (typeof item[key] !== typeof pkg[attr]) {
+              return tag.indexOf(item[key]) === tag.indexOf(pkg[key]);
+            } else if (typeof item[key] !== typeof pkg[key]) {
               return false;
             } else if (item[key] instanceof moment) {
-              return item[key].diff(pkg[attr], 'hours') === 0;
+              return item[key].diff(pkg[key], 'hours') === 0;
             } else {
-              return item[key] === pkg[attr];
+              return item[key] === pkg[key];
             }
           })
         );
 
+
         // Update multi-package if found, otherwise add new entry
         if (typeof multiPkg !== 'undefined') {
           multiPkg.count += 1;
-          multiPkg.trackingIds.push(pkg.tracking_number);
+          multiPkg.trackingIds.push(tracking.tracking_number);
         } else {
-          response.push(
-            Object.entries(keymap).reduce((item, [key, attr]) => ({ ...item, [key]: pkg[attr] }), {
-              count: 1,
-              trackingIds: [pkg.tracking_number]
-            })
-          );
+          response.push({
+            ...pkg,
+            count: 1,
+            trackingIds: [tracking.tracking_number]
+          });
         }
       });
 
